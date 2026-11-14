@@ -1,0 +1,19 @@
+# ROS 2 build files
+build/
+install/
+log/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# VS Code workspace settings
+.vscode/
+
+# Generated TF diagrams
+frames_*.gv
+frames_*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
