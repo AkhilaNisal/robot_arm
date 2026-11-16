@@ -203,6 +203,39 @@ including 30 initial Cartesian waypoints and 121 trajectory samples. Position,
 velocity, and applicable Cartesian tracking checks remain enabled by the
 preview node.
 
+## RViz preview topics and launch settings
+
+The preview publishes the planned TCP line strip on
+`/trajectory_preview/reference_path` and the TCP path reconstructed from the
+current joint states on `/trajectory_preview/actual_path`. Both are
+`visualization_msgs/msg/Marker`; the RViz config displays each as a colored
+line. The preview also publishes sampled workspace points on
+`/trajectory_preview/reachable_workspace` after the workspace menu action.
+When plotting is enabled, joint trajectory arrays are sent as JSON in
+`std_msgs/msg/String` on `/trajectory_preview/trajectory_data` and consumed by
+the `trajectory_plot` executable.
+
+The shared `trajectory_preview.launch.py` accepts `model`, `rviz_config`,
+`robot_config`, `pose_config`, `pose_input_mode`, `preview_rate`,
+`marker_publish_rate`, `looping`, `use_sim_time`, `joint_state_publisher`,
+`plot_trajectory`, and `workspace_samples`. `gp8_trajectory_preview.launch.py`
+selects the GP8 model, GP8 DH YAML, GP8 pose YAML and the standard trajectory
+preview RViz file. Its exposed arguments are `pose_input_mode` (`rviz`),
+`plot_trajectory` (`false`), `workspace_samples` (`12000`), `preview_rate`
+(`30.0`), `looping` (`false`), and `joint_state_publisher` (`false`). For
+example:
+
+```bash
+ros2 launch robot_arm_description gp8_trajectory_preview.launch.py \
+  pose_input_mode:=yaml plot_trajectory:=true workspace_samples:=30000
+```
+
+Use **Open Gripper** or **Close Gripper** from either pose marker menu to set
+the GP8 finger joint positions. The RViz preview models these positions; it
+does not simulate contact. The trajectory preview and Gazebo pick/place are
+separate launches. See the `robot_arm_gazebo` guide for controller execution,
+the Gazebo gripper, Box A/Box B, and the planning progress panel.
+
 ## Independent trajectory validation
 
 Trajectory validation is a separate, read-only operation. It checks numerical

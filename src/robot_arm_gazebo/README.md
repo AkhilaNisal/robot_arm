@@ -1,145 +1,252 @@
-# GP8 Gazebo pick and place
+# GP8 Gazebo Sim pick and place
 
-This package starts Gazebo Sim with the GP8 arm, a small cube, a work surface,
-`gz_ros2_control` controllers, and an RViz pose selector. It reuses
-`robot_arm_kinematics` for GP8 FK/IK and `robot_arm_trajectory` for Cartesian
-line, raised arc, and joint-space planning, interpolation, timing, and
-trajectory validation.
+This package launches the GP8 arm in Gazebo Sim with `gz_ros2_control`, ROS 2
+joint controllers, RViz pose markers, and a pick/place planner. It uses
+`robot_arm_kinematics` for FK/IK and `robot_arm_trajectory` for Cartesian or
+joint-space path planning, interpolation, timing and validation. The planner
+checks every motion segment before it starts arm execution.
 
-## Build and launch
+## Build
 
 From the workspace root:
 
 ```bash
+cd ~/robot_arm
 source /opt/ros/jazzy/setup.bash
 colcon build --packages-up-to robot_arm_gazebo
 source install/setup.bash
+```
+
+This builds the Gazebo package and its dependencies, including the custom
+`robot_arm_rviz_panel` C++ plugin. Re-source `install/setup.bash` after each
+build before launching.
+
+## Standard workcell
+
+```bash
 ros2 launch robot_arm_gazebo gp8_pick_place.launch.py
 ```
 
-## Assignment workcell
+The standard SDF contains a ground plane and work surface. The launch spawns
+the GP8 and a small cube, then starts the state publisher, Gazebo/ROS bridge,
+joint-state broadcaster, arm and gripper controllers, RViz and pick/place
+planner. The GP8 base is fixed to the simulated world. The cube has increased
+contact friction, but grasp following is handled by the planner's deterministic
+Gazebo pose updates, rather than relying on simulated finger friction alone.
 
-Launch the separate Box A / Box B assignment world with:
+## Box A / Box B assignment workcell
 
 ```bash
 ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py
 ```
 
-The planner publishes the concatenated reference TCP path and measured TCP
-path to `/trajectory_preview/reference_path` and
-`/trajectory_preview/actual_path` for the configured RViz displays. To open
-joint position, velocity, acceleration, and jerk graphs, enable the optional
-plot window:
+This launch builds a temporary Gazebo world from
+`worlds/gp8_assignment.sdf` and `config/gp8_assignment.yaml`. Box A is inserted
+as a static Gazebo model and displayed in RViz; Box B is spawned as the cube
+the gripper picks up. The current YAML sets Box A's centre to
+`[0.62, 0.25, 0.10]` m with size `[0.30, 0.30, 0.20]` m, and Box B's centre to
+`[0.62, -0.25, 0.025]` m with size `[0.05, 0.05, 0.05]` m. Those are selected
+reachable positions for this workcell, rather than the task sheet's farther
+coordinates. The Place pose is computed at the centre of Box A's top surface,
+using the two box heights and Box A's orientation.
 
-```bash
-ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py plot_trajectory:=true
-```
+Edit `objects.box_a` or `objects.box_b` in the assignment YAML to move or
+rotate either box or to change its dimensions. Box B must remain a cube. The
+Pick marker follows Box B's configured pose when starting in YAML/config mode.
+Restart the launch after YAML edits; the assignment world is generated once
+at launch. The configuration also has the Initial arm pose and all planner
+and grasp settings documented below.
 
-Leave `plot_trajectory:=false` (the default) to run without the graph window.
+## Pose selection and operation
 
-This starts a ground plane, Box A, the GP8, and Box B. Box A is composed into
-the Gazebo world from YAML before Gazebo starts, so it appears as a world model
-in the Gazebo Entity Tree. RViz also displays a Box A marker from the same pose.
-The task configuration
-is `config/gp8_assignment.yaml`. Box A is set to 30 × 30 × 20 cm and Box B to
-5 × 5 × 5 cm. The selected reachable Box A centre is `[0.62, 0.25, 0.10]` m;
-the GP8 cannot reach the task sheet's `[1, 1, 0]` m location from the origin.
-Box B starts at `[0.62, -0.25, 0.025]` m. The Place target is calculated from
-Box A's pose and dimensions so Box B lands at the centre of its top surface.
-
-Use RViz **Interact** to adjust the Initial, Pick, and Place markers and choose
-**Plan and Execute Pick & Place** from a marker menu. Set
-`pose_input_mode:=yaml` to make the markers read-only. The default assignment
-planner uses a raised Cartesian arc and matching Pick/Place orientations to
-keep Box B upright during the transfer.
-
-Edit `objects.box_a` or `objects.box_b` in `gp8_assignment.yaml` to change the
-box poses, orientations, or dimensions. Box B must remain a cube. Its default
-Pick marker follows the configured Box B pose, and the Place marker is computed
-from Box A's top surface. Restart the launch after editing the file.
-
-Gazebo opens with the GP8, a 4.5 cm cube sized for the gripper, and a table. RViz provides Initial,
-Pick, and Place markers. Select **Interact** to move them, then right-click a
-marker and choose **Plan and Execute Pick & Place**. The sequence opens the
-gripper, moves to the selected initial pose, approaches and picks the cube,
-lifts it, transfers it, releases it at Place, retreats, and returns to Initial.
-Each motion segment is planned and validated before any motion starts. If a
-segment cannot be planned or validated, the sequence stops before execution.
-The table is positioned at `x=0.72 m` with its near edge at `x=0.32 m`, away
-from the base rotation area. Default Pick and Place targets are shifted outward
-to remain over this table. The Gazebo URDF includes a fixed world-to-base joint
-so gravity and arm motion cannot tip or slide the robot base.
-
-Use fixed YAML poses instead of draggable markers with:
-
-```bash
-ros2 launch robot_arm_gazebo gp8_pick_place.launch.py pose_input_mode:=yaml
-```
-
-The same sequence can be triggered without the marker menu:
+The RViz configuration is `rviz/gp8_pick_place.rviz`. It displays the robot,
+interactive Initial/Pick/Place poses, Box A, the reference TCP path, the
+measured TCP path, and the Pick and Place Progress panel. Use the **Interact**
+tool to move a pose marker. Open a marker's context menu and select **Plan and
+Execute Pick & Place**. The same command can be called as a ROS service:
 
 ```bash
 ros2 service call /gp8_pick_place/plan_and_execute std_srvs/srv/Trigger {}
 ```
 
-## Pose and planner configuration
+For the eight motion segments (initial approach, pick approach, descend, lift,
+transfer, place, retreat, return), the node plans and validates every segment
+before sending any arm goal. If one segment fails planning, validation, or IK,
+execution stops before arm motion. On success it opens the gripper, moves to
+Initial, approaches Pick, closes the gripper, checks the grasp, lifts and
+transfers the box, releases it at Place, retreats and returns to Initial.
+Moving the Pick marker also moves the cube to that selected target when the
+next sequence starts. The box is attached to the measured TCP after a
+successful grasp check and is released at Place.
 
-The default config is `config/gp8_pick_place.yaml`. Pose positions are metres
-in `base_link`; orientations are normalized ROS `[x, y, z, w]` quaternions.
-For the shipped vertical grasp, Pick and Place positions represent the cube
-centre. Starting the sequence moves the cube to the selected Pick marker, so
-RViz edits and the simulated box stay aligned. The box is attached to the live
-measured TCP after the close action only when the TCP is within
-`grasp_tolerance` of the box; otherwise the sequence stops with a grasp error.
-While grasped, the box follows the measured arm joint state through a throttled
-Gazebo pose update. At Place, it is set to the selected target and released.
-The config has `initial`, `pick`, and `place` poses, plus these `pick_place`
-settings:
+The RViz progress panel consumes `/gp8_pick_place/planning_progress`. It
+reports segment planning and validation percentages, planning failure, plan
+readiness, and sequence completion. Updates occur at segment boundaries, so
+the percentage may hold while a long segment is being planned. The panel is a
+plugin from `robot_arm_rviz_panel`; `colcon build --packages-up-to
+robot_arm_gazebo` builds and installs it. If you previously saw an undefined
+panel vtable error, close the old RViz instance, rebuild and source the
+workspace before relaunching.
 
-- `pose_input_mode`: `rviz` or `yaml`. The launch argument overrides this
-  value; `rviz` permits editing and `yaml` makes markers read-only. Its
-  default is read from this YAML setting.
-- `path_method`: `cartesian_linear`, `cartesian_arc`, or `joint_space`.
-  The chosen method is used for each segment. Cartesian paths constrain the
-  tool to a line or raised arc; joint space interpolates joint configurations.
-- `cartesian_arc_height`: arc rise in metres.
-- `num_cartesian_waypoints`: initial path discretization.
-- `duration`, `num_samples`: duration in seconds and trajectory sample count
-  for each segment.
-- `interpolation_method`: `linear`, `cubic_spline`, or `quintic_polynomial`.
-- `interpolation_options`: options for the selected interpolator, such as
-  spline `bc_type`.
-- `time_parameterization_method`: `quintic_scaling`, `trapezoidal`, or
-  `seventh_order` (`s_curve` remains a deprecated alias).
-- `time_parameterization_options`: options for the timing profile.
-- `ik_solver`: `damped_least_squares`, `jacobian_transpose`, or `pseudoinverse`.
-- `max_joint_waypoint_step`, `max_cartesian_refinement_depth`: Cartesian IK
-  continuity threshold in radians and adaptive subdivision depth.
-- `approach_height`: vertical clearance above Pick and Place in metres.
-- `gripper_open_position`, `gripper_closed_position`: finger joint positions
-  in metres (the shipped URDF uses 0.0 m open and 0.015 m closed).
-- `cube_initial_pose`, `cube_place_pose`: optional cube center XYZ positions
-  in the Gazebo world frame. If omitted, the YAML Pick and Place positions are
-  used. When RViz markers are moved, the selected Pick marker becomes the cube
-  position for the next sequence.
-- `cube_size`: cube width in metres, matching its collision and visual geometry.
-- `cube_grasp_follow_rate`: maximum TCP-follow update rate in Hz while grasped.
-- `grasp_offset`: cube-centre offset from the TCP in TCP coordinates (metres).
-- `grasp_tolerance`: maximum TCP-to-cube-centre distance allowed at grasp.
+## Path and plot visualization
 
-Use a different pose config with `pose_config:=/absolute/path/to/file.yaml`.
-The YAML top level must contain `poses.initial`, `poses.pick`, `poses.place`,
-and `pick_place` settings.
+After the full plan validates, the planner publishes the concatenated planned
+TCP path to `/trajectory_preview/reference_path` as a blue `Marker/LINE_STRIP`.
+During arm execution, joint-state measurements are passed through GP8 forward
+kinematics and published as a green path on
+`/trajectory_preview/actual_path`. Both topics use transient-local marker QoS
+so RViz can display the latest marker after subscribing. The RViz displays
+are enabled in `gp8_pick_place.rviz`.
 
-## Launch arguments
+The optional plot window displays each joint's position, velocity,
+acceleration and jerk against time. Enable it for either launch:
 
-- `pose_input_mode:=rviz|yaml`
-- `pose_config:=...` selects the three-pose and planner YAML.
-- `world:=...` selects an SDF world. The default is `worlds/pick_place.sdf`.
+```bash
+ros2 launch robot_arm_gazebo gp8_pick_place.launch.py plot_trajectory:=true
+ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py plot_trajectory:=true
+```
 
-The supported path, interpolation, timing, and IK choices match the existing
-trajectory preview. None of the current planners performs collision checking
-or torque/dynamic feasibility analysis. The shipped cube attachment is a
-deterministic simulation aid: it moves the Gazebo cube with the tool rather
-than relying on contact friction, and does not model a physical grasp force.
-The shipped cube is 5 cm wide and has a mass of 0.08 kg in the launch SDF.
+`plot_trajectory` defaults to `false`. The plot window opens after a valid
+plan is ready. Jerk is unavailable for timing profiles that do not supply it.
+The serialized samples are published on `/trajectory_preview/trajectory_data`
+for `robot_arm_trajectory`'s plotter node.
+
+## Pose input modes and launch arguments
+
+Both workcell launches accept:
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `pose_input_mode` | `config` | `config` reads the mode in the selected YAML. `rviz` enables interactive marker editing; `yaml` uses fixed configured poses. |
+| `pose_config` | workcell-specific YAML | YAML file containing Initial pose and planner settings; assignment YAML also defines both boxes. |
+| `plot_trajectory` | `false` | Start the optional joint graph window. |
+
+The standard `gp8_pick_place.launch.py` additionally accepts:
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `world` | `worlds/pick_place.sdf` | SDF world file. |
+| `world_name` | `pick_place` | Gazebo world name used by bridge and entity service. |
+| `cube_name` | `gp8_demo_cube` | Gazebo entity name for the graspable cube. |
+| `cube_initial_pose` | `0.62 0.0 0.625` | Spawn centre XYZ in metres, as a space-separated string. |
+| `cube_size` | `0.045` | Cube side length in metres. |
+| `gz_partition` | `robot_arm_gp8_pick_place` | Gazebo transport partition. |
+
+The assignment launch accepts the shared `pose_input_mode`, `pose_config`,
+and `plot_trajectory` arguments. Its config determines Box A/Box B spawn
+poses and sizes; it passes the Box B spawn position and size into the standard
+workcell launch. For example:
+
+```bash
+ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py pose_input_mode:=yaml plot_trajectory:=true
+ros2 launch robot_arm_gazebo gp8_pick_place.launch.py pose_input_mode:=yaml
+```
+
+To use another configuration file, pass an absolute path, for example:
+
+```bash
+ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py pose_config:=/home/user/my_gp8_assignment.yaml
+```
+
+## YAML reference
+
+### Pose schema and frames
+
+Pose position is XYZ in metres. `orientation_xyzw` is the normalized ROS
+quaternion `[x, y, z, w]`. The workcell's `base_link` origin is coincident
+with the Gazebo world origin. Standard workcell YAML contains:
+
+```yaml
+poses:
+  initial:
+    position: [x, y, z]
+    orientation_xyzw: [x, y, z, w]
+  pick:
+    position: [x, y, z]
+    orientation_xyzw: [x, y, z, w]
+  place:
+    position: [x, y, z]
+    orientation_xyzw: [x, y, z, w]
+```
+
+In assignment YAML, `objects.box_a` and `objects.box_b` provide `position`,
+`orientation_xyzw`, and `size: [x, y, z]`. Box A's specified position is its
+centre. The Pick pose is loaded from Box B. The Place pose is derived from
+Box A's top face, so it should not be specified as a separate `poses.place`.
+The assignment config still needs `poses.initial`.
+
+### `pick_place` options
+
+These values are in `gp8_pick_place.yaml` and `gp8_assignment.yaml` under
+`pick_place`:
+
+| Key | Default/example | Meaning |
+| --- | --- | --- |
+| `pose_input_mode` | `rviz` | Default marker mode used when launch argument is `config`; explicit `rviz`/`yaml` launch values override it. |
+| `path_method` | `joint_space` | `cartesian_linear`, `cartesian_arc`, or `joint_space`, used for each segment. |
+| `cartesian_arc_height` | `0.08` m; assignment `0.24` m | Raised arc height for `cartesian_arc`. |
+| `num_cartesian_waypoints` | `20`; assignment `30` | Initial Cartesian path discretization. |
+| `duration` | `3.0` s; assignment `4.0` s | Duration assigned to each arm segment. |
+| `num_samples` | `91`; assignment `121` | Generated samples per segment. |
+| `interpolation_method` | `cubic_spline` | `linear`, `cubic_spline`, or `quintic_polynomial`. |
+| `interpolation_options` | `{}` | Method-specific joint interpolation options; e.g. `bc_type` for spline. |
+| `time_parameterization_method` | `quintic_scaling` | `quintic_scaling`, `trapezoidal`, or `seventh_order` (`s_curve` is a deprecated alias). |
+| `time_parameterization_options` | `{}` | Method-specific timing options. |
+| `ik_solver` | `damped_least_squares` | `damped_least_squares`, `jacobian_transpose`, or `pseudoinverse`. |
+| `max_joint_waypoint_step` | `0.5` rad | Preferred maximum joint step during Cartesian waypoint IK. |
+| `max_cartesian_refinement_depth` | `8` | Maximum adaptive subdivision depth for Cartesian IK. |
+| `approach_height` | `0.10` m; assignment `0.12` m | Vertical clearance used for approach/retreat targets. |
+| `gripper_open_position` | `0.0` m | Finger joint target for opening. |
+| `gripper_closed_position` | `0.015` m | Finger joint target for closing. |
+| `cube_size` | `0.045` m; assignment `0.05` m | Cube side length expected by the gripper/config. |
+| `cube_grasp_follow_rate` | `100.0` Hz | Maximum update rate for moving the attached cube with the arm. |
+| `grasp_offset` | `[0, 0, 0]` m | Cube-centre offset from the TCP, expressed in TCP coordinates. |
+| `grasp_tolerance` | `0.10` m | Maximum TCP-to-cube-centre distance allowed by grasp check. |
+| `cube_initial_pose` | optional XYZ | Overrides initial cube centre in standard workcell. Assignment launch supplies this from Box B. |
+| `cube_place_pose` | optional XYZ | Optional explicit cube centre at release; normally derived from Place. |
+
+The current node uses the configured Pick marker to position the cube when
+starting. For the standard workcell, Pick and Place poses are interpreted as
+the grasp/release target used by the shipped vertical grasp; the configured
+offset adjusts the cube centre relative to the TCP. In the assignment scene,
+the box dimensions determine the top-surface Place height.
+
+## Planner behavior and limits
+
+- **Cartesian line** constrains the tool to a straight line and solves IK at
+  intermediate poses. It can fail if any intermediate is unreachable or near
+  a singularity.
+- **Raised Cartesian arc** uses a raised tool route. A reachable endpoint does
+  not guarantee every point on the arc is reachable.
+- **Joint space** solves the endpoint and interpolates the joint values. Its
+  tool path may curve and may avoid Cartesian waypoint IK failures.
+
+All methods then interpolate and time-parameterize joint waypoints and check
+the trajectory against configured position/velocity limits and applicable
+Cartesian tracking tolerances. This package does not perform collision
+checking, torque analysis, or dynamic feasibility analysis. Review RViz and
+Gazebo paths and adjust targets/planner settings when a plan fails or would
+intersect the work surface.
+
+## Troubleshooting and useful topics
+
+- If a controller reports that no clock is available, wait for Gazebo's world
+  clock and controller manager to initialize; the launch remaps `/clock` to
+  the active world's clock topic.
+- If the arm does not move, confirm the launch has finished spawning the arm,
+  `joint_state_broadcaster`, `arm_controller`, and `gripper_controller`, then
+  check the planner log and progress panel. The plan action does not execute
+  until all segments validate.
+- If a path is not visible, ensure the RViz **Reference Path** and **Actual
+  Path** displays are enabled and fixed frame is `base_link`. Reference path
+  is sent after planning succeeds; actual path is sent during arm motion.
+- If the progress panel class cannot load, build `robot_arm_gazebo` and its
+  dependencies, source `install/setup.bash`, and launch a fresh RViz process.
+- Use `ros2 topic echo /gp8_pick_place/planning_progress` to inspect
+  `percent|status` updates. Use `ros2 topic info
+  /trajectory_preview/reference_path` and the corresponding `actual_path`
+  topic to check marker publishers.
+
+No physical grasp force is simulated: the cube follows the measured arm pose
+after the TCP-to-cube tolerance check. The simplified attachment is intended
+for repeatable task visualization and planning demonstration.
