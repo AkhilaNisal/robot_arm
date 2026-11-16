@@ -6,6 +6,7 @@ log/
 # Python cache
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
 # VS Code workspace settings
 .vscode/
@@ -13,6 +14,10 @@ __pycache__/
 # Generated TF diagrams
 frames_*.gv
 frames_*.pdf
+
+# Generated trajectory plots
+trajectory_profiles.png
+trajectory_validation_plots/
 
 # OS files
 .DS_Store

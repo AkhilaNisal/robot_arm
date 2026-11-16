@@ -50,7 +50,7 @@
         <child link="link_1"/>
         <origin xyz="0 0 ${base_height}" rpy="0 0 0"/>
         <axis xyz="0 0 1"/>
-        <limit lower="-3.14" upper="3.14" effort="100" velocity="2.0"/>
+        <limit lower="-3.141592653589793" upper="3.141592653589793" effort="100" velocity="2.0"/>
     </joint>
 
     <!-- Link 2 -->
@@ -113,7 +113,7 @@
         <child link="link_4"/>
         <origin xyz="0 0 ${link3_length}" rpy="0 0 0"/>
         <axis xyz="0 0 1"/>
-        <limit lower="-3.14" upper="3.14" effort="50" velocity="3.0"/>
+        <limit lower="-3.141592653589793" upper="3.141592653589793" effort="50" velocity="3.0"/>
     </joint>
 
     <!-- Link 5 -->
@@ -155,7 +155,7 @@
         <child link="link_6"/>
         <origin xyz="0 0 ${link5_length}" rpy="0 0 0"/>
         <axis xyz="0 0 1"/>
-        <limit lower="-3.14" upper="3.14" effort="30" velocity="3.0"/>
+        <limit lower="-3.141592653589793" upper="3.141592653589793" effort="30" velocity="3.0"/>
     </joint>
 
     <!-- End-effector frame -->

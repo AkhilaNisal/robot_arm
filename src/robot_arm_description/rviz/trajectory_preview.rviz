@@ -1,0 +1,82 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /RobotModel1
+        - /Reference Path1
+        - /Actual Path1
+        - /Interactive Poses1
+      Splitter Ratio: 0.5
+    Tree Height: 600
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 0.1
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: base_link
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Frame Timeout: 15
+    - Class: rviz_default_plugins/InteractiveMarkers
+      Name: Interactive Poses
+      Enabled: true
+      Interactive Markers Namespace: /trajectory_preview/poses
+      Show Descriptions: true
+      Show Axes: true
+      Show Visual Aids: true
+    - Class: rviz_default_plugins/Marker
+      Name: Reference Path
+      Enabled: true
+      Marker Topic:
+        Value: /trajectory_preview/reference_path
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+    - Class: rviz_default_plugins/Marker
+      Name: Actual Path
+      Enabled: true
+      Marker Topic:
+        Value: /trajectory_preview/actual_path
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+  Enabled: true
+  Global Options:
+    Fixed Frame: base_link
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 2.5
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0.5
+      Pitch: 0.8
+      Yaw: 0.8
+      Value: Orbit (rviz_default_plugins)
+Window:
+  Height: 900
+  Width: 1400

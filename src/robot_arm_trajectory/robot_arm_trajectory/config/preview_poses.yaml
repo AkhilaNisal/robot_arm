@@ -1,0 +1,26 @@
+# Cartesian poses are expressed in base_link. Positions are metres and
+# orientations use normalized ROS [x, y, z, w] quaternion order.
+poses:
+  start:
+    position: [0.5604379913, 0.2196020866, 0.8741139828]
+    orientation_xyzw: [-0.0333377208, 0.6398709371, 0.2788298409, 0.7153374729]
+  goal:
+    position: [0.5540330285, 0.3706424487, 0.6325639287]
+    orientation_xyzw: [0.0159379926, 0.8320655822, 0.3912271307, 0.3928793448]
+
+# Planner settings used when launching with pose_input_mode:=yaml.
+# Cubic spline provides C2 joint-path smoothness; quintic scaling starts and
+# ends with zero path velocity and acceleration.
+trajectory:
+  num_cartesian_waypoints: 50
+  duration: 4.0
+  num_samples: 401
+  interpolation_method: cubic_spline
+  interpolation_options:
+    bc_type: not-a-knot
+  time_parameterization_method: quintic_scaling
+  time_parameterization_options: {}
+  ik_solver: damped_least_squares
+  max_joint_waypoint_step: 0.5
+  cartesian_position_tolerance: 0.002
+  cartesian_orientation_tolerance: 0.02
