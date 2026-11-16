@@ -7,7 +7,6 @@ from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Point
 import numpy as np
 import rclpy
-from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from robot_arm_kinematics.forward_kinematics import forward_kinematics
@@ -446,6 +445,12 @@ class TrajectoryPreviewNode(Node):
     def _playback_tick(self):
         """Publish due trajectory samples and handle end/loop behavior."""
         now = self.get_clock().now()
+        if self.state == self.COMPLETED:
+            final_sample = self.samples[-1]
+            self._publish_joint_positions(
+                final_sample.positions, now, final_sample.names
+            )
+            return
         if self.playback_start_ros is None:
             startup_elapsed = (
                 now - self.startup_start_ros
@@ -466,10 +471,7 @@ class TrajectoryPreviewNode(Node):
         index = latest_due_sample_index(self.samples, elapsed, self.index)
         if index is not None:
             sample = self.samples[index]
-            stamp = self.playback_start_ros + Duration(
-                seconds=sample.relative_time
-            )
-            self._publish_joint_positions(sample.positions, stamp, sample.names)
+            self._publish_joint_positions(sample.positions, now, sample.names)
             self.index = index + 1
 
         if self.index < len(self.samples):
@@ -478,7 +480,6 @@ class TrajectoryPreviewNode(Node):
             self.index = 0
             self.playback_start_ros = now
         else:
-            self._cancel_timer('playback_timer')
             self.state = self.COMPLETED
             self.get_logger().info('Trajectory preview completed.')
 

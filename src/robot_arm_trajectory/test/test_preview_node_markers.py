@@ -57,8 +57,8 @@ def test_markers_publish_reference_and_actual_geometry():
     )
 
 
-def test_playback_completion_cancels_only_playback_timer():
-    """Finishing playback leaves the periodic marker timer active."""
+def test_playback_completion_keeps_publishing_final_joint_state():
+    """Completed playback holds the final state for fresh TF transforms."""
     node = make_node_shell()
     node.get_clock = Mock(return_value=SimpleNamespace(
         now=Mock(return_value=FakeTime(0))
@@ -67,6 +67,7 @@ def test_playback_completion_cancels_only_playback_timer():
     node.samples = [SimpleNamespace(relative_time=0.0, positions=[0.0], names=['j'])]
     node.index = 0
     node.looping = False
+    node.state = node.READY
     playback_timer = Mock()
     node.playback_timer = playback_timer
     node.marker_timer = Mock()
@@ -76,10 +77,35 @@ def test_playback_completion_cancels_only_playback_timer():
 
     node._playback_tick()
 
-    playback_timer.cancel.assert_called_once_with()
+    playback_timer.cancel.assert_not_called()
     node.marker_timer.cancel.assert_not_called()
+    args = node._publish_joint_positions.call_args.args
+    assert args[0] == [0.0]
+    assert args[1].nanoseconds == 0
+    assert args[2] == ['j']
+    assert node.state == node.COMPLETED
     node.reference_publisher.publish.assert_not_called()
     node.actual_publisher.publish.assert_not_called()
+
+
+def test_completed_playback_republishes_held_joint_state():
+    """The final state continues to refresh after trajectory completion."""
+    node = make_node_shell()
+    node.state = node.COMPLETED
+    node.get_clock = Mock(return_value=SimpleNamespace(
+        now=Mock(return_value=FakeTime(100))
+    ))
+    node.samples = [SimpleNamespace(
+        relative_time=1.0, positions=[0.5], names=['joint_1']
+    )]
+    node._publish_joint_positions = Mock()
+
+    node._playback_tick()
+
+    args = node._publish_joint_positions.call_args.args
+    assert args[0] == [0.5]
+    assert args[1].nanoseconds == 100
+    assert args[2] == ['joint_1']
 
 
 class FakeTime:
