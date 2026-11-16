@@ -1,192 +1,138 @@
-# ROS 2 Six-DOF Robot Arm Framework
+# ROS 2 Robot Arm Trajectory Preview
 
-A reusable six-axis arm framework for ROS 2 Jazzy. The current project stage
-covers robot description, kinematics, inverse kinematics, Cartesian and joint
-trajectory generation, validation, and RViz trajectory preview. Gazebo and
-hardware execution are not included yet.
+ROS 2 Jazzy workspace for a generic six-axis arm and the GP8 arm. The current
+workflow plans and visualizes trajectories in RViz. It does not drive Gazebo
+or hardware controllers.
 
-## Implemented packages
+Requirements: Ubuntu 24.04, ROS 2 Jazzy, Python 3, NumPy, SciPy, and PyYAML.
+Matplotlib is needed only for optional trajectory plots.
 
-- **`robot_arm_description`** — generic six-joint Xacro/URDF model and launch
-  files for model display and trajectory preview.
-- **`robot_arm_kinematics`** — standard DH forward kinematics, geometric
-  Jacobian, robot model and joint limits, and full-pose IK solvers (damped
-  least squares, Jacobian transpose, and pseudoinverse).
-- **`robot_arm_trajectory`** — Cartesian path generation, sequential IK,
-  linear/cubic/quintic joint interpolation, quintic/trapezoidal/seventh-order
-  time parameterization, trajectory validation, and an RViz preview.
-
-The preview is visualization-only. It publishes `/joint_states` for
-`robot_state_publisher`; it does not command hardware, start Gazebo, or run a
-controller.
-
-## Requirements
-
-- Ubuntu 24.04 and ROS 2 Jazzy
-- Python 3, NumPy, SciPy, PyYAML
-- ROS packages: `xacro`, `robot_state_publisher`, `rviz2`,
-  `interactive_markers`
-
-Install ROS dependencies if needed:
-
-```bash
-sudo apt update
-sudo apt install ros-jazzy-xacro ros-jazzy-robot-state-publisher \
-  ros-jazzy-rviz2 ros-jazzy-interactive-markers python3-numpy \
-  python3-scipy python3-yaml
-```
-
-## Build
-
-From the workspace root:
+## Build and launch GP8
 
 ```bash
 cd ~/robot_arm
 source /opt/ros/jazzy/setup.bash
-rosdep install --from-paths src --ignore-src -r -y
-colcon build --packages-up-to robot_arm_description robot_arm_trajectory
+colcon build --packages-select robot_arm_kinematics robot_arm_trajectory robot_arm_description
 source install/setup.bash
+ros2 launch robot_arm_description gp8_trajectory_preview.launch.py
 ```
 
-## Select Cartesian poses and preview a trajectory
+To use the editable RViz start and goal markers, keep the default
+`pose_input_mode:=rviz`. Select RViz's **Interact** tool to move the markers.
+Right-click a marker to access planning, reset, gripper, and workspace actions.
+Planning is explicit; the arm does not start a trajectory on launch.
 
-Launch the full application in one terminal:
+Use `pose_input_mode:=yaml` to load the fixed GP8 poses and planner defaults
+from `src/robot_arm_trajectory/robot_arm_trajectory/config/gp8_preview_poses.yaml`.
+In YAML mode the pose markers are not draggable, but their context menu remains
+available. To display a different pose config, edit the GP8 config file or
+launch the shared `trajectory_preview.launch.py` with a custom `pose_config`.
+
+## Choose a path method
+
+The marker menu offers three approaches:
+
+| RViz menu | YAML value | Behavior |
+| --- | --- | --- |
+| **Plan: Cartesian Line** | `cartesian_linear` | Tool position follows a straight line; orientation uses quaternion SLERP. Sequential IK solves the intermediate poses. |
+| **Plan: Raised Cartesian Arc** | `cartesian_arc` | Tool follows a raised quadratic arc; `cartesian_arc_height` sets the rise in metres. Intermediate poses must still be reachable. |
+| **Plan: Joint Space** | `joint_space` | IK solves the goal, then joint angles are interpolated. The tool path may curve and is not constrained to a line or arc. |
+
+Cartesian line and arc paths refine difficult segments up to
+`max_cartesian_refinement_depth`, keeping individual IK joint steps below
+`max_joint_waypoint_step` when possible. IK retries alternate deterministic
+seeds for selected start and joint-space goal poses. A failure can still mean
+the endpoint or a Cartesian intermediate is unreachable, or lies near a
+singularity. None of the path methods performs collision checking.
+
+## Optional trajectory plots
+
+Start the plot window only when desired:
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-source ~/robot_arm/install/setup.bash
-ros2 launch robot_arm_description trajectory_preview.launch.py
+ros2 launch robot_arm_description gp8_trajectory_preview.launch.py plot_trajectory:=true
 ```
 
-The default `pose_input_mode:=rviz` displays editable blue **Start Pose** and
-orange **Goal Pose** interactive markers in `base_link`. Select RViz's
-**Interact** tool to translate and rotate each pose. Right-click either marker
-and select **Plan & Preview Trajectory**. Planning is never started
-automatically. Reset actions are also available in the marker menu.
+After a trajectory validates, a Matplotlib window plots all arm joint
+positions in degrees, velocities in rad/s, accelerations in rad/s², and jerk
+in rad/s³ against time. The plot updates after each successful plan. If the
+selected timing method does not provide jerk, the jerk panel says so. Plotting
+is disabled by default (`plot_trajectory:=false`).
 
-Alternatively, set both complete poses in one YAML file and launch in YAML
-mode:
+## Approximate reachable workspace
+
+Right-click either pose marker and select **Show Approximate Reachable
+Workspace**. RViz displays TCP points computed by sampling joint values
+within the configured limits. Select **Hide Reachable Workspace** to remove
+the cloud.
+
+GP8 launch defaults to 12,000 samples. Change density on launch, for example:
 
 ```bash
-ros2 launch robot_arm_description trajectory_preview.launch.py \
-  pose_input_mode:=yaml
+ros2 launch robot_arm_description gp8_trajectory_preview.launch.py workspace_samples:=30000
 ```
 
-The default file is
-`src/robot_arm_trajectory/robot_arm_trajectory/config/preview_poses.yaml`.
-Set `pose_config:=/path/to/poses.yaml` to use another file. It contains both
-poses and the planner settings used in YAML mode:
+More samples give a denser cloud but take longer to calculate and render. This
+is a sampled position envelope: it does not show every reachable point, test
+tool orientations, or account for self-collision or obstacles.
 
-```yaml
-poses:
-  start:
-    position: [0.5604379913, 0.2196020866, 0.8741139828]
-    orientation_xyzw: [-0.0333377208, 0.6398709371, 0.2788298409, 0.7153374729]
-  goal:
-    position: [0.5540330285, 0.3706424487, 0.6325639287]
-    orientation_xyzw: [0.0159379926, 0.8320655822, 0.3912271307, 0.3928793448]
-trajectory:
-  num_cartesian_waypoints: 50
-  duration: 4.0
-  num_samples: 401
-  interpolation_method: cubic_spline
-  interpolation_options:
-    bc_type: not-a-knot
-  time_parameterization_method: quintic_scaling
-  time_parameterization_options: {}
-  ik_solver: damped_least_squares
-  max_joint_waypoint_step: 0.5
-  cartesian_position_tolerance: 0.002
-  cartesian_orientation_tolerance: 0.02
-```
+## Other RViz controls
 
-Quaternions use normalized ROS order `[x, y, z, w]`. In YAML mode the markers
-show the configured poses without drag controls; use the context menu or
-`/trajectory_preview/plan` service to plan. The default planner choices are
-cubic spline interpolation and quintic time scaling: the spline is C2 across
-waypoints, and the timing profile has zero path velocity and acceleration at
-both ends. They are a smooth general-purpose preview profile, not a guarantee
-that every custom pose pair is reachable or satisfies a user-specific speed
-limit. YAML mode uses the trajectory settings from this file; launch-supplied
-ROS parameter overrides still take precedence.
-In RViz mode the marker values are the live pose input. Both modes use the same
-start-pose IK, sequential Cartesian IK, trajectory generation, and validation
-steps. The `initial_joint_configuration` parameter remains the start IK seed.
+- **Open Gripper** and **Close Gripper** publish the GP8 finger positions.
+- **Reset Start Pose**, **Reset Goal Pose**, and **Reset Both Poses** restore
+  the model's default marker poses.
+- **joint_state_publisher:=true** opens the manual joint slider GUI; leave it
+  false while preview playback is driving `/joint_states`.
+- `preview_rate` sets playback updates per second; `looping:=true` plays the
+  trajectory forward and then backward.
+- `marker_publish_rate` sets how often the displayed reference and actual
+  Cartesian paths are refreshed.
+- `use_sim_time:=true` makes playback use `/clock` instead of wall time.
 
-YAML mode markers are read-only but include a menu control. If the RViz context
-menu is inconvenient, explicitly request planning from another sourced
-terminal:
+For the generic arm, use `trajectory_preview.launch.py`. Its defaults load the
+generic URDF, kinematics config, and `preview_poses.yaml`. Both launch files
+accept `plot_trajectory`, `workspace_samples`, `preview_rate`, `looping`, and
+`pose_input_mode` as applicable.
 
-```bash
-ros2 service call /trajectory_preview/plan std_srvs/srv/Trigger {}
-```
+The shared `trajectory_preview.launch.py` also exposes `marker_publish_rate`,
+`use_sim_time`, `model`, `rviz_config`, `robot_config`, and `pose_config`.
+GP8's wrapper selects the GP8 model and configs, and exposes `preview_rate`,
+`looping`, `joint_state_publisher`, `plot_trajectory`, `workspace_samples`,
+and `pose_input_mode`.
 
-This service does not plan automatically; it performs the same validation and
-playback flow as **Plan & Preview Trajectory**.
+## Trajectory settings
 
-Useful launch options:
+The GP8 defaults live in `gp8_preview_poses.yaml`; generic defaults live in
+`preview_poses.yaml`. The `trajectory` section supports:
 
-```bash
-ros2 launch robot_arm_description trajectory_preview.launch.py \
-  pose_input_mode:=rviz preview_rate:=30.0 marker_publish_rate:=1.0 \
-  looping:=false use_sim_time:=false
-```
+- `path_method`: `cartesian_linear`, `cartesian_arc`, or `joint_space`.
+- `cartesian_arc_height`: arc rise in metres.
+- `num_cartesian_waypoints`: initial path discretization; adaptive refinement
+  may add Cartesian points.
+- `duration` and `num_samples`: trajectory duration and output samples.
+- `interpolation_method`: `linear`, `cubic_spline`, or
+  `quintic_polynomial` for the joint waypoints produced by any path method.
+- `time_parameterization_method`: `quintic_scaling`, `trapezoidal`, or
+  `seventh_order`; this assigns timestamps and derivatives to the interpolated
+  joint path. `s_curve` is a deprecated alias for `seventh_order`, not a
+  conventional constant-jerk S-curve.
+- `ik_solver`: `damped_least_squares`, `jacobian_transpose`, or `pseudoinverse`.
+- `max_joint_waypoint_step` and `max_cartesian_refinement_depth`: continuity
+  threshold and maximum adaptive subdivision depth.
+- `cartesian_position_tolerance` and `cartesian_orientation_tolerance`:
+  Cartesian tracking validation tolerances.
+- `interpolation_options` and `time_parameterization_options`: method-specific
+  dictionaries.
 
-`pose_input_mode` accepts `rviz` or `yaml`. `pose_config` selects the YAML file;
-`robot_config` selects the robot DH and joint-limit configuration. Other preview
-parameters include `preview_rate`, `marker_publish_rate`, `looping`,
-`use_sim_time`, `initial_joint_configuration`, `num_cartesian_waypoints`,
-`trajectory_duration`, `num_trajectory_samples`, `interpolation_method`,
-`time_parameterization_method`, and `ik_solver`.
+Interpolation and time parameterization are shared by all path methods. Both
+produce a time-parameterized joint trajectory that is checked for joint
+limits, velocity limits, and applicable Cartesian tracking before playback.
 
-The preview solves full-pose IK for the selected start from the configured
-joint seed. It then plans the Cartesian path to the selected goal using the
-existing sequential IK pipeline. Unreachable poses, joint-limit or waypoint
-continuity failures, and failed trajectory validation prevent playback; the
-node reports the failure in the launch terminal. Changing a pose invalidates a
-previous plan. A new explicit planning request is required.
+## Package guides
 
-Topics:
-
-- `/joint_states` — `sensor_msgs/msg/JointState`
-- `/trajectory_preview/reference_path` — desired Cartesian `LINE_STRIP`
-- `/trajectory_preview/actual_path` — FK-derived Cartesian `LINE_STRIP`
-- `/trajectory_preview/poses/update` — interactive marker updates
-
-Path markers publish immediately after successful validation and continue at
-`marker_publish_rate`, including after playback completes. `looping:=true`
-plays forward and backward. `use_sim_time:=true` makes playback follow `/clock`.
-
-## Algorithms and validation
-
-Trajectory path interpolation and time parameterization are independent.
-Supported interpolation methods are `linear`, `cubic_spline`, and
-`quintic_polynomial`; supported timing methods are `quintic_scaling`,
-`trapezoidal`, and `seventh_order`. The `s_curve` name remains a deprecated
-alias for the seventh-order polynomial and is not a conventional constant-jerk
-S-curve.
-
-Trajectory validation checks finite data, configured joint constraints, and
-optional Cartesian tracking. Position extrema use floating-point polynomial
-root solving; derivative extrema include numerical searches. These are
-numerical checks, not formal continuous-time certificates. No generic joint
-acceleration or jerk limits are assumed.
-
-See [`src/robot_arm_trajectory/README.md`](src/robot_arm_trajectory/README.md)
-for the Python trajectory API and validation details. Standalone diagnostic
-and demonstration scripts are in `scripts/`; package regression tests are under
-each package's `test/` directory.
-
-Run relevant tests with:
-
-```bash
-colcon test --packages-select robot_arm_kinematics robot_arm_trajectory
-colcon test-result --verbose
-```
-
-## Current scope and next stage
-
-The current milestone ends at a validated trajectory preview in RViz. The next
-planned milestone is Gazebo simulation, followed by dynamics and controller
-integration. No Gazebo or hardware dependencies are required for the current
-workflow.
+- [`robot_arm_description`](src/robot_arm_description/README.md): launch files,
+  model files, and RViz configuration.
+- [`robot_arm_kinematics`](src/robot_arm_kinematics/README.md): standard DH
+  models, joint limits, FK, Jacobian, and IK solvers.
+- [`robot_arm_trajectory`](src/robot_arm_trajectory/README.md): path planning,
+  interpolation, timing, validation, plotting, and preview details.

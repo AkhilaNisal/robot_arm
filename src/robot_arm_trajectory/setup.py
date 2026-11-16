@@ -29,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             'trajectory_preview = robot_arm_trajectory.trajectory_preview_node:main',
+            'trajectory_plot = robot_arm_trajectory.trajectory_plot_node:main',
         ],
     },
 )

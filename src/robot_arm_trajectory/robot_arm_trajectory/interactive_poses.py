@@ -196,7 +196,7 @@ class InteractivePoseControls:
 
     def __init__(
         self, node, start_pose, goal_pose, pose_callback, menu_callback,
-        editable=True, gripper_callback=None,
+        editable=True, gripper_callback=None, workspace_callback=None,
     ):
         self.node = node
         self.server = InteractiveMarkerServer(
@@ -205,6 +205,7 @@ class InteractivePoseControls:
         self.pose_callback = pose_callback
         self.menu_callback = menu_callback
         self.gripper_callback = gripper_callback
+        self.workspace_callback = workspace_callback
         self.editable = editable
         self.poses = {
             self.START: matrix_to_pose_message(start_pose),
@@ -237,6 +238,14 @@ class InteractivePoseControls:
             )
             self.menu_ids['gripper_close'] = self.menu.insert(
                 'Close Gripper', callback=self._menu_feedback
+            )
+        if self.workspace_callback is not None:
+            self.menu_ids['workspace_show'] = self.menu.insert(
+                'Show Approximate Reachable Workspace',
+                callback=self._menu_feedback,
+            )
+            self.menu_ids['workspace_hide'] = self.menu.insert(
+                'Hide Reachable Workspace', callback=self._menu_feedback
             )
         self._insert_marker(self.START, 'Start Pose', (0.1, 0.5, 1.0, 1.0))
         self._insert_marker(self.GOAL, 'Goal Pose', (1.0, 0.35, 0.1, 1.0))
@@ -311,6 +320,8 @@ class InteractivePoseControls:
         )
         if command.startswith('gripper_'):
             self.gripper_callback(command.removeprefix('gripper_'))
+        elif command.startswith('workspace_'):
+            self.workspace_callback(command.removeprefix('workspace_'))
         elif command.startswith('plan_'):
             self.menu_callback(command)
         else:

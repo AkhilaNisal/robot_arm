@@ -29,6 +29,8 @@ def generate_launch_description():
     looping = LaunchConfiguration('looping')
     use_sim_time = LaunchConfiguration('use_sim_time')
     joint_state_publisher = LaunchConfiguration('joint_state_publisher')
+    plot_trajectory = LaunchConfiguration('plot_trajectory')
+    workspace_samples = LaunchConfiguration('workspace_samples')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -71,6 +73,14 @@ def generate_launch_description():
         DeclareLaunchArgument('marker_publish_rate', default_value='1.0'),
         DeclareLaunchArgument('looping', default_value='false'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument(
+            'plot_trajectory', default_value='false',
+            description='Open optional joint trajectory derivative plots.',
+        ),
+        DeclareLaunchArgument(
+            'workspace_samples', default_value='3000',
+            description='Number of joint-limit samples in the RViz workspace cloud.',
+        ),
         DeclareLaunchArgument(
             'joint_state_publisher', default_value='false',
             description='Run joint_state_publisher_gui for manual joint control.',
@@ -115,6 +125,14 @@ def generate_launch_description():
                 'marker_publish_rate': marker_publish_rate,
                 'looping': looping,
                 'use_sim_time': use_sim_time,
+                'workspace_samples': workspace_samples,
             }],
+        ),
+        Node(
+            package='robot_arm_trajectory',
+            executable='trajectory_plot',
+            name='robot_arm_trajectory_plot',
+            output='screen',
+            condition=IfCondition(plot_trajectory),
         ),
     ])

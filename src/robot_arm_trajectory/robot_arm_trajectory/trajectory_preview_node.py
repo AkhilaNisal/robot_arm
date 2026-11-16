@@ -38,6 +38,7 @@ from robot_arm_trajectory.preview_utils import (
     validate_positive_rate,
 )
 from sensor_msgs.msg import JointState
+from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from visualization_msgs.msg import Marker
 
@@ -152,6 +153,7 @@ class TrajectoryPreviewNode(Node):
         self.declare_parameter('looping', False)
         self.declare_parameter('gripper_open_position', 0.0)
         self.declare_parameter('gripper_closed_position', 0.015)
+        self.declare_parameter('workspace_samples', 3000)
         self.declare_parameter('startup_delay', 0.5)
         self.declare_parameter(
             'max_joint_waypoint_step',
@@ -262,6 +264,16 @@ class TrajectoryPreviewNode(Node):
         self.joint_publisher = self.create_publisher(
             JointState, '/joint_states', 10
         )
+        self.trajectory_plot_publisher = self.create_publisher(
+            String,
+            '/trajectory_preview/trajectory_data',
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+        )
+        self.workspace_publisher = self.create_publisher(
+            Marker,
+            '/trajectory_preview/reachable_workspace',
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+        )
         self.gripper_position = float(
             self.get_parameter('gripper_open_position').value
         )
@@ -284,6 +296,7 @@ class TrajectoryPreviewNode(Node):
                 if self.robot.name.lower() == 'gp8'
                 else None
             ),
+            workspace_callback=self._workspace_action,
         )
         self.get_logger().info(
             f'Pose input mode: {self.pose_input_mode}. '
@@ -444,6 +457,7 @@ class TrajectoryPreviewNode(Node):
                     + '; '.join(preview_data.validation.errors)
                 )
                 return
+            self._publish_trajectory_plot_data(result.joint_trajectory)
             for warning in preview_data.validation.warnings:
                 self.get_logger().warning(warning)
 
@@ -510,6 +524,73 @@ class TrajectoryPreviewNode(Node):
             'enforce_position_limits': True,
             'enforce_velocity_limits': True,
         }
+
+    def _publish_trajectory_plot_data(self, trajectory):
+        """Send validated position and derivative samples to the plotter."""
+        message = String()
+        message.data = json.dumps({
+            'joint_names': self.robot.joint_names,
+            'time': trajectory.time.tolist(),
+            'positions': trajectory.positions.tolist(),
+            'velocities': trajectory.velocities.tolist(),
+            'accelerations': trajectory.accelerations.tolist(),
+            'jerks': (
+                None if trajectory.jerks is None
+                else trajectory.jerks.tolist()
+            ),
+        })
+        self.trajectory_plot_publisher.publish(message)
+
+    def _workspace_action(self, action):
+        """Show or remove sampled FK points for the configured joint limits."""
+        if action == 'hide':
+            marker = Marker()
+            marker.header.frame_id = 'base_link'
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = 'reachable_workspace'
+            marker.id = 0
+            marker.action = Marker.DELETE
+            self.workspace_publisher.publish(marker)
+            return
+
+        sample_count = int(self.get_parameter('workspace_samples').value)
+        if sample_count < 100:
+            self.get_logger().warning(
+                'workspace_samples below 100; using 100 samples.'
+            )
+            sample_count = 100
+        rng = np.random.default_rng(17)
+        configurations = rng.uniform(
+            self.robot.lower_limits,
+            self.robot.upper_limits,
+            size=(sample_count, self.robot.dof),
+        )
+        marker = Marker()
+        marker.header.frame_id = 'base_link'
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = 'reachable_workspace'
+        marker.id = 0
+        marker.type = Marker.POINTS
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = marker.scale.y = marker.scale.z = 0.008
+        marker.color.r = 0.1
+        marker.color.g = 0.75
+        marker.color.b = 1.0
+        marker.color.a = 0.32
+        marker.points = [
+            Point(x=float(position[0]), y=float(position[1]),
+                  z=float(position[2]))
+            for position in (
+                forward_kinematics(self.robot, q)[:3, 3]
+                for q in configurations
+            )
+        ]
+        self.workspace_publisher.publish(marker)
+        self.get_logger().info(
+            f'Published {sample_count} approximate reachable TCP positions '
+            'from joint-limit samples; collision checking is not included.'
+        )
 
     def _playback_tick(self):
         """Publish due trajectory samples and handle end/loop behavior."""

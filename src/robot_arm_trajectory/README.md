@@ -55,11 +55,12 @@ The independent validator checks position and derivative constraints at the
 trajectory's supplied samples, so it cannot certify inter-sample limits by
 itself. The trapezoidal profile has acceleration discontinuities and provides
 no jerk output, so it cannot support jerk-limit enforcement.
-The RViz preview's single configuration file is
-`robot_arm_trajectory/config/preview_poses.yaml`. It contains the Cartesian
-poses and preview planner defaults. The general Python trajectory APIs remain
-configuration-independent; pass their interpolation, timing, and constraint
-options directly to the generator.
+The generic RViz preview config is
+`robot_arm_trajectory/config/preview_poses.yaml`; the GP8 config is
+`robot_arm_trajectory/config/gp8_preview_poses.yaml`. Each contains its
+Cartesian start and goal poses and planner defaults. The general Python
+trajectory APIs remain configuration-independent; pass their path,
+interpolation, timing, and constraint options directly to the generator.
 
 For the GP8 mesh model, build and launch the model-specific preview:
 
@@ -69,6 +70,13 @@ source install/setup.bash
 ros2 launch robot_arm_description gp8_trajectory_preview.launch.py
 ```
 
+Add `plot_trajectory:=true` to open a separate Matplotlib window after a
+trajectory validates. It plots all joint positions (degrees), velocities
+(rad/s), accelerations (rad/s²), and jerks (rad/s³) versus time. It updates
+with each newly validated trajectory. The option defaults to `false`; jerk is
+shown as unavailable if the selected time-parameterization method supplies no
+jerk values.
+
 Move the Start Pose and Goal Pose interactive markers in RViz, then select
 **Plan: Cartesian Line**, **Plan: Raised Cartesian Arc**, or
 **Plan: Joint Space** from either marker menu. The same menu contains
@@ -77,18 +85,44 @@ as `cartesian_linear`, `cartesian_arc`, or `joint_space` in the pose config;
 `cartesian_arc_height` sets the arc's rise in metres. GP8 forward kinematics
 and Jacobian calculations use the standard DH table and fixed base/tool
 transforms in `robot_arm_kinematics/config/gp8.yaml`.
+The marker menu also offers **Show Approximate Reachable Workspace**. This
+samples joint-limit configurations and displays their TCP positions as RViz
+points; select **Hide Reachable Workspace** to clear them. On the GP8 launch,
+`workspace_samples` defaults to 12,000; increase it for a denser cloud, for
+example `workspace_samples:=30000`. The shared launch defaults to 3,000. More
+samples increase sampling and rendering time. The cloud is a sampled position
+envelope; it is not an exhaustive workspace solution, does not show reachable
+tool orientations, and does not account for self-collision or obstacles.
 
-Cartesian paths constrain the tool to a line or raised arc, so they can fail
-when intermediate poses are unreachable or IK changes joint branches. Joint
-space solves the goal once and interpolates between joint configurations; the
-tool may take a curved route. All modes still validate joint limits and the
-time-parameterized trajectory. The preview does not perform collision checks.
-Line and arc paths now subdivide difficult segments automatically when IK
-fails or a joint step exceeds `max_joint_waypoint_step`; the recursion limit is
-set by `max_cartesian_refinement_depth`. Start and joint-space goal IK also
-retry deterministic alternate joint seeds. Persistent failures can indicate
-an unreachable endpoint, an infeasible Cartesian intermediate, or collision
-(which this preview does not check).
+The GP8 path menu choices are Cartesian Line, Raised Cartesian Arc, and Joint
+Space. The generic and GP8 YAML files include the same planner options:
+
+- `path_method`: `cartesian_linear`, `cartesian_arc`, or `joint_space`.
+- `cartesian_arc_height`: arc rise above the midpoint, in metres.
+- `num_cartesian_waypoints`: initial discretization. Cartesian line and arc
+  planners can add points through adaptive refinement.
+- `duration`, `num_samples`: total motion time and sampled output count.
+- `interpolation_method`: `linear`, `cubic_spline`, or
+  `quintic_polynomial`, applied to the joint waypoints from every path type.
+- `time_parameterization_method`: `quintic_scaling`, `trapezoidal`, or
+  `seventh_order`. The old `s_curve` name is a deprecated alias for the
+  seventh-order polynomial.
+- `ik_solver`: `damped_least_squares`, `jacobian_transpose`, or `pseudoinverse`.
+- `max_joint_waypoint_step`, `max_cartesian_refinement_depth`: joint
+  continuity threshold and subdivision depth for Cartesian IK.
+- `cartesian_position_tolerance`, `cartesian_orientation_tolerance`: path
+  tracking validation thresholds.
+- `interpolation_options`, `time_parameterization_options`: dictionaries for
+  settings specific to the chosen algorithms.
+
+Use **Plan: Cartesian Line** when tool motion must be straight; use **Plan:
+Raised Cartesian Arc** for a raised tool route; use **Plan: Joint Space** when
+the endpoint matters and the intermediate tool path can curve. Cartesian
+approaches solve IK along every intermediate pose and may fail near singular
+or unreachable sections. Joint Space solves the goal and interpolates joint
+angles, so it does not follow a prescribed Cartesian route. All approaches
+enforce configured joint position and velocity limits and run trajectory
+validation; none performs collision checking.
 
 The generator expects finite waypoint rows with consistent joint order and
 units (normally radians). It does not do collision checking or dynamic torque
@@ -115,13 +149,15 @@ joint-space planning plus joint trajectory interpolation are in
 `robot_arm_trajectory/joint_space/`. `pipeline.py` selects a path planner and
 then passes its joint waypoints to the shared time parameterization flow.
 
-`generate_cartesian_joint_trajectory()` connects the existing Cartesian path,
-sequential IK, and joint trajectory APIs. By default it computes the start
-end-effector pose from the robot model and initial joint configuration. An
-optional `start_pose` transform instead supplies a selected Cartesian start.
-It creates a linear position path with quaternion SLERP orientation, solves
-each waypoint using the prior IK solution as the next seed, then
-time-parameterizes the joint waypoints.
+`generate_cartesian_joint_trajectory()` selects Cartesian line, raised arc,
+or joint-space planning, then uses the shared joint trajectory API. By default
+it computes the start end-effector pose from the robot model and initial joint
+configuration. An optional `start_pose` transform instead supplies a selected
+Cartesian start.
+Cartesian modes create the selected tool path and solve each waypoint using
+the prior IK solution as the next seed. Joint-space mode solves the endpoint
+and interpolates between joint configurations. All modes then interpolate and
+time-parameterize the joint waypoints.
 
 ```python
 from robot_arm_trajectory import generate_cartesian_joint_trajectory
@@ -147,8 +183,9 @@ else:
 ```
 
 The initial configuration must have one finite, in-limit value per robot joint;
-the goal and optional start must be valid 4x4 homogeneous poses. The IK solver must use a robot
-with matching degrees of freedom and joint position limits. The returned
+the goal and optional start must be valid 4x4 homogeneous poses. The IK solver
+must use a robot with matching degrees of freedom and joint position limits.
+The returned
 `CartesianJointTrajectoryResult` contains `success`, `cartesian_path`,
 `ik_result`, `joint_trajectory`, `message`, and `failed_stage`. Invalid inputs
 raise `ValueError`; IK or trajectory-generation failures return a structured
@@ -159,10 +196,12 @@ The RViz preview supports editable marker poses (`pose_input_mode:=rviz`) and
 poses loaded from one YAML file (`pose_input_mode:=yaml`). The YAML schema and
 launch examples are documented in the workspace [README](../../README.md).
 In YAML mode, its `trajectory` section selects planner defaults as well as
-poses. The shipped profile uses C2 cubic-spline joint interpolation, quintic
-time scaling, damped-least-squares IK, 50 Cartesian waypoints, and 401
-trajectory samples. Position, estimated velocity, and Cartesian tracking
-checks remain enabled by the preview node.
+poses. The generic shipped profile uses C2 cubic-spline joint interpolation,
+quintic time scaling, damped-least-squares IK, 50 Cartesian waypoints, and 401
+trajectory samples. GP8 uses its own values in `gp8_preview_poses.yaml`,
+including 30 initial Cartesian waypoints and 121 trajectory samples. Position,
+velocity, and applicable Cartesian tracking checks remain enabled by the
+preview node.
 
 ## Independent trajectory validation
 
