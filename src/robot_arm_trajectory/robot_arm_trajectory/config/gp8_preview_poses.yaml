@@ -1,0 +1,27 @@
+# GP8 Cartesian poses in base_link. The start pose is the zero-joint pose;
+# the goal is a short, reachable motion from it. Positions use metres and
+# orientations use ROS [x, y, z, w] quaternion order.
+poses:
+  start:
+    position: [0.62994891, -0.00392604, 0.81400221]
+    orientation_xyzw: [0.70704, -0.00926, 0.70705, 0.00925]
+  goal:
+    position: [0.62720959, -0.05881476, 0.81400221]
+    orientation_xyzw: [0.70596822, -0.04008780, 0.70597096, 0.04008536]
+
+trajectory:
+  path_method: cartesian_linear
+  cartesian_arc_height: 0.08
+  num_cartesian_waypoints: 30
+  duration: 4.0
+  num_samples: 121
+  interpolation_method: cubic_spline
+  interpolation_options:
+    bc_type: not-a-knot
+  time_parameterization_method: quintic_scaling
+  time_parameterization_options: {}
+  ik_solver: damped_least_squares
+  max_joint_waypoint_step: 0.5
+  max_cartesian_refinement_depth: 8
+  cartesian_position_tolerance: 0.002
+  cartesian_orientation_tolerance: 0.02

@@ -12,6 +12,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/config', [
             'robot_arm_trajectory/config/preview_poses.yaml',
+            'robot_arm_trajectory/config/gp8_preview_poses.yaml',
         ]),
     ],
     install_requires=['setuptools', 'numpy', 'scipy', 'PyYAML'],

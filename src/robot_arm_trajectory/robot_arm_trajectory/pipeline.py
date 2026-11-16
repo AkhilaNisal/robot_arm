@@ -6,8 +6,16 @@ import numpy as np
 
 from robot_arm_kinematics.forward_kinematics import forward_kinematics
 
-from .cartesian_ik import CartesianIKResult, solve_cartesian_path
-from .cartesian_path import generate_linear_cartesian_path, validate_pose
+from .cartesian_ik import (
+    CartesianIKResult,
+    solve_cartesian_path,
+    solve_ik_with_restarts,
+)
+from .cartesian_path import (
+    generate_arc_cartesian_path,
+    generate_linear_cartesian_path,
+    validate_pose,
+)
 from .joint_trajectory import generate_joint_trajectory, JointTrajectory
 
 
@@ -45,6 +53,9 @@ def generate_cartesian_joint_trajectory(
     enforce_jerk_limits=False,
     max_joint_waypoint_step=None,
     start_pose=None,
+    path_method='cartesian_linear',
+    cartesian_arc_height=0.1,
+    max_refinement_depth=8,
 ):
     """
     Generate a time-parameterized joint trajectory for a Cartesian goal.
@@ -66,16 +77,54 @@ def generate_cartesian_joint_trajectory(
         start_pose = forward_kinematics(robot_model, q)
     else:
         start_pose = validate_pose(start_pose)
-    cartesian_path = generate_linear_cartesian_path(
-        start_pose, target, num_waypoints=num_waypoints
-    )
-
-    ik_result = solve_cartesian_path(
-        cartesian_path,
-        ik_solver,
-        q,
-        max_joint_waypoint_step=max_joint_waypoint_step,
-    )
+    if path_method == 'cartesian_linear':
+        cartesian_path = generate_linear_cartesian_path(
+            start_pose, target, num_waypoints=num_waypoints
+        )
+        ik_result = solve_cartesian_path(
+            cartesian_path, ik_solver, q,
+            max_joint_waypoint_step=max_joint_waypoint_step,
+            adaptive_refinement=True,
+            max_refinement_depth=max_refinement_depth,
+        )
+    elif path_method == 'cartesian_arc':
+        cartesian_path = generate_arc_cartesian_path(
+            start_pose, target, num_waypoints=num_waypoints,
+            arc_height=cartesian_arc_height,
+        )
+        ik_result = solve_cartesian_path(
+            cartesian_path, ik_solver, q,
+            max_joint_waypoint_step=max_joint_waypoint_step,
+            adaptive_refinement=True,
+            max_refinement_depth=max_refinement_depth,
+        )
+    elif path_method == 'joint_space':
+        endpoint = solve_ik_with_restarts(ik_solver, target, q)
+        if not endpoint.success:
+            return CartesianJointTrajectoryResult(
+                success=False, cartesian_path=None, ik_result=None,
+                joint_trajectory=None,
+                message=f'Goal-pose IK failed: {endpoint.message}',
+                failed_stage='ik',
+            )
+        end_q = robot_model.enforce_joint_limits(
+            np.asarray(endpoint.joint_positions, dtype=float)
+        )
+        joint_waypoints = np.linspace(q, end_q, num_waypoints)
+        cartesian_path = [
+            forward_kinematics(robot_model, configuration)
+            for configuration in joint_waypoints
+        ]
+        ik_result = CartesianIKResult(
+            joint_trajectory=[row.copy() for row in joint_waypoints],
+            success=True, failed_waypoint=-1,
+            message='Joint-space path generated from endpoint IK.',
+        )
+    else:
+        raise ValueError(
+            'path_method must be cartesian_linear, cartesian_arc, or '
+            'joint_space.'
+        )
     if not ik_result.success:
         return CartesianJointTrajectoryResult(
             success=False,
@@ -88,6 +137,8 @@ def generate_cartesian_joint_trajectory(
             ),
             failed_stage='ik',
         )
+    if ik_result.cartesian_path is not None:
+        cartesian_path = ik_result.cartesian_path
 
     try:
         trajectory = generate_joint_trajectory(

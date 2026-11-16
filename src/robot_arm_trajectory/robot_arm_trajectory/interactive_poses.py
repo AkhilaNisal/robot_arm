@@ -10,6 +10,7 @@ from visualization_msgs.msg import Marker
 
 from .cartesian_path import quaternion_to_rotation
 from .pipeline import generate_cartesian_joint_trajectory
+from .cartesian_ik import solve_ik_with_restarts
 
 
 def load_preview_config(path):
@@ -143,7 +144,9 @@ def plan_selected_poses(
     """Solve start-pose IK, then use the existing Cartesian pipeline."""
     import numpy as np
 
-    start_solution = solver.solve(start_pose, seed_configuration)
+    start_solution = solve_ik_with_restarts(
+        solver, start_pose, seed_configuration
+    )
     if not start_solution.success:
         details = (
             f'{start_solution.message} Position error: '
@@ -190,7 +193,7 @@ class InteractivePoseControls:
 
     def __init__(
         self, node, start_pose, goal_pose, pose_callback, menu_callback,
-        editable=True,
+        editable=True, gripper_callback=None,
     ):
         self.node = node
         self.server = InteractiveMarkerServer(
@@ -198,6 +201,7 @@ class InteractivePoseControls:
         )
         self.pose_callback = pose_callback
         self.menu_callback = menu_callback
+        self.gripper_callback = gripper_callback
         self.editable = editable
         self.poses = {
             self.START: matrix_to_pose_message(start_pose),
@@ -205,8 +209,14 @@ class InteractivePoseControls:
         }
         self.menu = MenuHandler()
         self.menu_ids = {
-            'plan': self.menu.insert(
-                'Plan & Preview Trajectory', callback=self._menu_feedback
+            'plan_linear': self.menu.insert(
+                'Plan: Cartesian Line', callback=self._menu_feedback
+            ),
+            'plan_arc': self.menu.insert(
+                'Plan: Raised Cartesian Arc', callback=self._menu_feedback
+            ),
+            'plan_joint': self.menu.insert(
+                'Plan: Joint Space', callback=self._menu_feedback
             ),
             'reset_start': self.menu.insert(
                 'Reset Start Pose', callback=self._menu_feedback
@@ -218,6 +228,13 @@ class InteractivePoseControls:
                 'Reset Both Poses', callback=self._menu_feedback
             ),
         }
+        if self.gripper_callback is not None:
+            self.menu_ids['gripper_open'] = self.menu.insert(
+                'Open Gripper', callback=self._menu_feedback
+            )
+            self.menu_ids['gripper_close'] = self.menu.insert(
+                'Close Gripper', callback=self._menu_feedback
+            )
         self._insert_marker(self.START, 'Start Pose', (0.1, 0.5, 1.0, 1.0))
         self._insert_marker(self.GOAL, 'Goal Pose', (1.0, 0.35, 0.1, 1.0))
         self.server.applyChanges()
@@ -289,7 +306,12 @@ class InteractivePoseControls:
             name for name, entry_id in self.menu_ids.items()
             if entry_id == feedback.menu_entry_id
         )
-        self.menu_callback(command)
+        if command.startswith('gripper_'):
+            self.gripper_callback(command.removeprefix('gripper_'))
+        elif command.startswith('plan_'):
+            self.menu_callback(command)
+        else:
+            self.menu_callback(command)
 
     def set_pose(self, marker_name, pose):
         """Set a marker pose from a ROS pose or transform matrix."""

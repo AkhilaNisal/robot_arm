@@ -1,0 +1,21 @@
+robot:
+  name: gp8
+  dof: 6
+  joint_names: [joint_0, joint_1, joint_2, joint_3, joint_4, joint_5]
+
+  # Frame conventions and limits for GP8 Cartesian planning.
+  base_transform:
+    translation: [0.0, 0.0, 0.33]
+
+  dh_parameters:
+    - {a: 0.0, alpha_deg: 0.0, d: 0.0, theta_offset_deg: 0.0}
+    - {a: 0.0, alpha_deg: 0.0, d: 0.0, theta_offset_deg: 0.0}
+    - {a: 0.0, alpha_deg: 0.0, d: 0.0, theta_offset_deg: 0.0}
+    - {a: 0.0, alpha_deg: 0.0, d: 0.0, theta_offset_deg: 0.0}
+    - {a: 0.0, alpha_deg: 0.0, d: 0.0, theta_offset_deg: 0.0}
+    - {a: 0.0, alpha_deg: 0.0, d: 0.0, theta_offset_deg: 0.0}
+
+  joint_limits:
+    lower_deg: [-170.0, -145.0, -70.0, -190.0, -135.0, -360.0]
+    upper_deg: [170.0, 65.0, 190.0, 190.0, 135.0, 360.0]
+    velocity: [6.54498, 5.49779, 7.15585, 9.59931, 9.59931, 17.4533]

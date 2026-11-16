@@ -12,6 +12,8 @@ poses:
 # Cubic spline provides C2 joint-path smoothness; quintic scaling starts and
 # ends with zero path velocity and acceleration.
 trajectory:
+  path_method: cartesian_linear
+  cartesian_arc_height: 0.10
   num_cartesian_waypoints: 50
   duration: 4.0
   num_samples: 401

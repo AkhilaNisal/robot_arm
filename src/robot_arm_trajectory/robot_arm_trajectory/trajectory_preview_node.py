@@ -78,11 +78,9 @@ class TrajectoryPreviewNode(Node):
         ).lower()
         if self.pose_input_mode not in ('rviz', 'yaml'):
             raise ValueError('pose_input_mode must be either rviz or yaml.')
-        self.pose_configuration = None
-        if self.pose_input_mode == 'yaml':
-            self.pose_configuration = load_preview_config(
-                self.get_parameter('pose_config').value
-            )
+        self.pose_configuration = load_preview_config(
+            self.get_parameter('pose_config').value
+        )
         planner_config = (
             self.pose_configuration[2]
             if self.pose_configuration is not None
@@ -91,9 +89,12 @@ class TrajectoryPreviewNode(Node):
         self.robot = RobotModel(
             self.get_parameter('robot_config').get_parameter_value().string_value
         )
-
-        q_default = np.deg2rad([20, 35, 20, 10, 25, 10])
-        goal_default_q = np.deg2rad([30, 45, 30, 20, 40, 25])
+        if self.robot.name.lower() == 'gp8':
+            q_default = np.zeros(6)
+            goal_default_q = np.deg2rad([5, 0, 0, 0, 0, 0])
+        else:
+            q_default = np.deg2rad([20, 35, 20, 10, 25, 10])
+            goal_default_q = np.deg2rad([30, 45, 30, 20, 40, 25])
         self.default_start_pose = forward_kinematics(self.robot, q_default)
         self.default_goal_pose = forward_kinematics(self.robot, goal_default_q)
         self.declare_parameter(
@@ -109,6 +110,13 @@ class TrajectoryPreviewNode(Node):
         self.declare_parameter(
             'num_cartesian_waypoints',
             planner_config.get('num_cartesian_waypoints', 50),
+        )
+        self.declare_parameter(
+            'path_method', planner_config.get('path_method', 'cartesian_linear')
+        )
+        self.declare_parameter(
+            'cartesian_arc_height',
+            planner_config.get('cartesian_arc_height', 0.1),
         )
         self.declare_parameter(
             'trajectory_duration', planner_config.get('duration', 4.0)
@@ -142,10 +150,16 @@ class TrajectoryPreviewNode(Node):
         self.declare_parameter('preview_rate', 30.0)
         self.declare_parameter('marker_publish_rate', 1.0)
         self.declare_parameter('looping', False)
+        self.declare_parameter('gripper_open_position', 0.015)
+        self.declare_parameter('gripper_closed_position', 0.0)
         self.declare_parameter('startup_delay', 0.5)
         self.declare_parameter(
             'max_joint_waypoint_step',
             planner_config.get('max_joint_waypoint_step', 0.5),
+        )
+        self.declare_parameter(
+            'max_cartesian_refinement_depth',
+            planner_config.get('max_cartesian_refinement_depth', 8),
         )
         self.declare_parameter(
             'cartesian_position_tolerance',
@@ -248,6 +262,13 @@ class TrajectoryPreviewNode(Node):
         self.joint_publisher = self.create_publisher(
             JointState, '/joint_states', 10
         )
+        self.gripper_position = float(
+            self.get_parameter('gripper_open_position').value
+        )
+        self.gripper_open_position = self.gripper_position
+        self.gripper_closed_position = float(
+            self.get_parameter('gripper_closed_position').value
+        )
         self.plan_service = self.create_service(
             Trigger, '/trajectory_preview/plan', self._plan_service
         )
@@ -258,12 +279,40 @@ class TrajectoryPreviewNode(Node):
             self._pose_changed,
             self._menu_action,
             editable=self.pose_input_mode == 'rviz',
+            gripper_callback=(
+                self._set_gripper
+                if self.robot.name.lower() == 'gp8'
+                else None
+            ),
         )
         self.get_logger().info(
             f'Pose input mode: {self.pose_input_mode}. '
             'Waiting for Start Pose and Goal Pose. '
             'Use a marker menu or call /trajectory_preview/plan to plan.'
         )
+        if self.robot.name.lower() == 'gp8':
+            self._publish_joint_positions(
+                self.q_initial, self.get_clock().now()
+            )
+            self._publish_gripper_state(self.get_clock().now())
+
+    def _set_gripper(self, command):
+        """Set the GP8 gripper slider position and publish its joint state."""
+        self.gripper_position = (
+            self.gripper_open_position
+            if command == 'open'
+            else self.gripper_closed_position
+        )
+        self._publish_gripper_state(self.get_clock().now())
+        self.get_logger().info(f'GP8 gripper {command}.')
+
+    def _publish_gripper_state(self, stamp):
+        """Publish both mimic finger positions for RViz RobotModel."""
+        message = JointState()
+        message.header.stamp = stamp.to_msg()
+        message.name = ['finger_left_joint', 'finger_right_joint']
+        message.position = [self.gripper_position, self.gripper_position]
+        self.joint_publisher.publish(message)
 
     def _plan_service(self, request, response):
         """Offer an explicit service trigger when the RViz menu is awkward."""
@@ -293,8 +342,13 @@ class TrajectoryPreviewNode(Node):
 
     def _menu_action(self, action):
         """Handle pose reset and explicit planning menu actions."""
-        if action == 'plan':
-            self._plan_and_preview()
+        path_methods = {
+            'plan_linear': 'cartesian_linear',
+            'plan_arc': 'cartesian_arc',
+            'plan_joint': 'joint_space',
+        }
+        if action in path_methods:
+            self._plan_and_preview(path_methods[action])
         elif action == 'reset_start':
             self.pose_controls.set_pose(
                 self.pose_controls.START, self.default_start_pose
@@ -333,7 +387,7 @@ class TrajectoryPreviewNode(Node):
             marker.action = Marker.DELETE
             publisher.publish(marker)
 
-    def _plan_and_preview(self):
+    def _plan_and_preview(self, path_method=None):
         """Solve selected start IK, generate, validate, then start playback."""
         if self._planning:
             self.get_logger().warning('A planning request is already active.')
@@ -354,7 +408,7 @@ class TrajectoryPreviewNode(Node):
             )
             planned = plan_selected_poses(
                 self.robot, self.solver, self.q_initial, start_pose, goal_pose,
-                self._pipeline_options(),
+                self._pipeline_options(path_method),
             )
             if not planned.success:
                 self.state = self.FAILED
@@ -366,6 +420,7 @@ class TrajectoryPreviewNode(Node):
 
             self.state = self.VALIDATING
             result = planned.trajectory_result
+            selected_method = self._pipeline_options(path_method)['path_method']
             preview_data = prepare_preview_data(
                 result.joint_trajectory, self.robot, result.cartesian_path,
                 time_parameterization=str(
@@ -377,6 +432,9 @@ class TrajectoryPreviewNode(Node):
                 ),
                 cartesian_orientation_tolerance=float(
                     self.get_parameter('cartesian_orientation_tolerance').value
+                ),
+                validate_cartesian_tracking=(
+                    selected_method != 'joint_space'
                 ),
             )
             if not preview_data.validation.success:
@@ -417,9 +475,17 @@ class TrajectoryPreviewNode(Node):
         finally:
             self._planning = False
 
-    def _pipeline_options(self):
+    def _pipeline_options(self, path_method=None):
         """Collect existing trajectory pipeline settings from ROS parameters."""
         return {
+            'path_method': (
+                str(self.get_parameter('path_method').value)
+                if path_method is None
+                else path_method
+            ),
+            'cartesian_arc_height': float(
+                self.get_parameter('cartesian_arc_height').value
+            ),
             'num_waypoints': int(
                 self.get_parameter('num_cartesian_waypoints').value
             ),
@@ -437,6 +503,9 @@ class TrajectoryPreviewNode(Node):
             'time_parameterization_options': self.time_parameterization_options,
             'max_joint_waypoint_step': float(
                 self.get_parameter('max_joint_waypoint_step').value
+            ),
+            'max_refinement_depth': int(
+                self.get_parameter('max_cartesian_refinement_depth').value
             ),
             'enforce_position_limits': True,
             'enforce_velocity_limits': True,
@@ -497,6 +566,13 @@ class TrajectoryPreviewNode(Node):
         message.header.stamp = stamp.to_msg()
         message.name = list(self.robot.joint_names if names is None else names)
         message.position = [float(value) for value in positions]
+        if self.robot.name.lower() == 'gp8':
+            message.name.extend([
+                'finger_left_joint', 'finger_right_joint'
+            ])
+            message.position.extend([
+                self.gripper_position, self.gripper_position
+            ])
         self.joint_publisher.publish(message)
 
     def _publish_markers(self):

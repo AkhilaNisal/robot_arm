@@ -2,6 +2,7 @@
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -27,6 +28,7 @@ def generate_launch_description():
     marker_publish_rate = LaunchConfiguration('marker_publish_rate')
     looping = LaunchConfiguration('looping')
     use_sim_time = LaunchConfiguration('use_sim_time')
+    joint_state_publisher = LaunchConfiguration('joint_state_publisher')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -69,6 +71,10 @@ def generate_launch_description():
         DeclareLaunchArgument('marker_publish_rate', default_value='1.0'),
         DeclareLaunchArgument('looping', default_value='false'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument(
+            'joint_state_publisher', default_value='false',
+            description='Run joint_state_publisher_gui for manual joint control.',
+        ),
         Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
@@ -88,6 +94,13 @@ def generate_launch_description():
             arguments=['-d', rviz_config],
             output='screen',
             parameters=[{'use_sim_time': use_sim_time}],
+        ),
+        Node(
+            package='joint_state_publisher_gui',
+            executable='joint_state_publisher_gui',
+            name='joint_state_publisher_gui',
+            output='screen',
+            condition=IfCondition(joint_state_publisher),
         ),
         Node(
             package='robot_arm_trajectory',

@@ -61,6 +61,34 @@ poses and preview planner defaults. The general Python trajectory APIs remain
 configuration-independent; pass their interpolation, timing, and constraint
 options directly to the generator.
 
+For the GP8 mesh model, build and launch the model-specific preview:
+
+```bash
+colcon build --packages-select robot_arm_kinematics robot_arm_trajectory robot_arm_description
+source install/setup.bash
+ros2 launch robot_arm_description gp8_trajectory_preview.launch.py
+```
+
+Move the Start Pose and Goal Pose interactive markers in RViz, then select
+**Plan: Cartesian Line**, **Plan: Raised Cartesian Arc**, or
+**Plan: Joint Space** from either marker menu. The same menu contains
+**Open Gripper** and **Close Gripper**. YAML users can select `path_method`
+as `cartesian_linear`, `cartesian_arc`, or `joint_space` in the pose config;
+`cartesian_arc_height` sets the arc's rise in metres. The preview uses the GP8
+URDF chain for forward kinematics and Jacobian calculations.
+
+Cartesian paths constrain the tool to a line or raised arc, so they can fail
+when intermediate poses are unreachable or IK changes joint branches. Joint
+space solves the goal once and interpolates between joint configurations; the
+tool may take a curved route. All modes still validate joint limits and the
+time-parameterized trajectory. The preview does not perform collision checks.
+Line and arc paths now subdivide difficult segments automatically when IK
+fails or a joint step exceeds `max_joint_waypoint_step`; the recursion limit is
+set by `max_cartesian_refinement_depth`. Start and joint-space goal IK also
+retry deterministic alternate joint seeds. Persistent failures can indicate
+an unreachable endpoint, an infeasible Cartesian intermediate, or collision
+(which this preview does not check).
+
 The generator expects finite waypoint rows with consistent joint order and
 units (normally radians). It does not do collision checking or dynamic torque
 planning. The piecewise linear derivative is defined per segment and is

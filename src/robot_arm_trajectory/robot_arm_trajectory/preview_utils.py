@@ -39,12 +39,15 @@ def prepare_preview_data(
     jerk_limits=None,
     cartesian_position_tolerance=None,
     cartesian_orientation_tolerance=None,
+    validate_cartesian_tracking=True,
 ):
     """Validate and convert trajectory and path data without ROS messages."""
     validation = validate_trajectory(
         trajectory,
         robot_model,
-        cartesian_path=cartesian_path,
+        cartesian_path=(
+            cartesian_path if validate_cartesian_tracking else None
+        ),
         time_parameterization=time_parameterization,
         time_parameterization_options=time_parameterization_options,
         acceleration_limits=acceleration_limits,

@@ -141,3 +141,34 @@ def generate_linear_cartesian_path(start_pose, goal_pose, num_waypoints=50):
         path.append(T)
 
     return path
+
+
+def generate_arc_cartesian_path(
+    start_pose, goal_pose, num_waypoints=50, arc_height=0.1
+):
+    """Generate a smooth raised quadratic-Bezier Cartesian path."""
+    start_pose = validate_pose(start_pose)
+    goal_pose = validate_pose(goal_pose)
+    if not isinstance(num_waypoints, int) or num_waypoints < 2:
+        raise ValueError("At least two Cartesian waypoints are required.")
+    if not np.isfinite(arc_height) or arc_height < 0:
+        raise ValueError('Arc height must be finite and nonnegative.')
+
+    p0, p1 = start_pose[:3, 3], goal_pose[:3, 3]
+    control = 0.5 * (p0 + p1)
+    control[2] += arc_height
+    q0 = rotation_to_quaternion(start_pose[:3, :3])
+    q1 = rotation_to_quaternion(goal_pose[:3, :3])
+    path = []
+    for progress in np.linspace(0.0, 1.0, num_waypoints):
+        position = (
+            (1.0 - progress) ** 2 * p0
+            + 2.0 * (1.0 - progress) * progress * control
+            + progress ** 2 * p1
+        )
+        orientation = quaternion_slerp(q0, q1, progress)
+        transform = np.eye(4)
+        transform[:3, :3] = quaternion_to_rotation(orientation)
+        transform[:3, 3] = position
+        path.append(transform)
+    return path
