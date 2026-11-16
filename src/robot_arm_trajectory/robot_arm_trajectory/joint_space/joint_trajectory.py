@@ -4,11 +4,11 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import minimize_scalar
 
-from .interpolation import INTERPOLATORS
-from .time_parameterization import TIME_PARAMETERIZERS
-from .time_parameterization.quintic_scaling import QuinticScaling
-from .time_parameterization.trapezoidal import TrapezoidalProfile
-from .time_parameterization.seventh_order import SeventhOrderProfile
+from ..interpolation import INTERPOLATORS
+from ..time_parameterization import TIME_PARAMETERIZERS
+from ..time_parameterization.quintic_scaling import QuinticScaling
+from ..time_parameterization.trapezoidal import TrapezoidalProfile
+from ..time_parameterization.seventh_order import SeventhOrderProfile
 
 
 @dataclass

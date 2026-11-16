@@ -108,6 +108,12 @@ Existing scripts remain under `scripts/`, including
 
 ## Cartesian-to-joint pipeline
 
+The implementation is divided by path space: Cartesian path generation and
+waypoint IK are in `robot_arm_trajectory/cartesian_space/`; endpoint IK and
+joint-space planning plus joint trajectory interpolation are in
+`robot_arm_trajectory/joint_space/`. `pipeline.py` selects a path planner and
+then passes its joint waypoints to the shared time parameterization flow.
+
 `generate_cartesian_joint_trajectory()` connects the existing Cartesian path,
 sequential IK, and joint trajectory APIs. By default it computes the start
 end-effector pose from the robot model and initial joint configuration. An

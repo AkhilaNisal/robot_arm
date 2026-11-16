@@ -14,7 +14,7 @@ from robot_arm_kinematics.inverse_kinematics.damped_least_squares import (
 from robot_arm_kinematics.robot_model import RobotModel
 
 from robot_arm_trajectory import generate_cartesian_joint_trajectory
-from robot_arm_trajectory.cartesian_path import validate_pose
+from robot_arm_trajectory.cartesian_space.cartesian_path import validate_pose
 
 
 @pytest.fixture

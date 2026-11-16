@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 from types import SimpleNamespace
 
-from robot_arm_trajectory.joint_trajectory import generate_joint_trajectory
+from robot_arm_trajectory.joint_space.joint_trajectory import (
+    generate_joint_trajectory,
+)
 from robot_arm_trajectory.interpolation import (
     LinearInterpolation, CubicSplineInterpolation,
     QuinticPolynomialInterpolation,

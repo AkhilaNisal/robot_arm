@@ -5,7 +5,10 @@ from .interpolation import (
     LinearInterpolation,
     QuinticPolynomialInterpolation,
 )
-from .joint_trajectory import generate_joint_trajectory, JointTrajectory
+from .joint_space.joint_trajectory import (
+    generate_joint_trajectory,
+    JointTrajectory,
+)
 from .pipeline import (
     CartesianJointTrajectoryResult,
     generate_cartesian_joint_trajectory,

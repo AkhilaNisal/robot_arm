@@ -7,7 +7,7 @@ import numpy as np
 from robot_arm_kinematics.forward_kinematics import forward_kinematics
 from robot_arm_kinematics.jacobian import calculate_jacobian
 
-from .cartesian_path import (
+from .cartesian_space.cartesian_path import (
     quaternion_slerp,
     quaternion_to_rotation,
     rotation_to_quaternion,

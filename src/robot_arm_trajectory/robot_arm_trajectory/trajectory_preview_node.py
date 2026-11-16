@@ -21,7 +21,7 @@ from robot_arm_kinematics.inverse_kinematics.pseudoinverse import (
 )
 from robot_arm_kinematics.robot_model import RobotModel
 
-from robot_arm_trajectory.cartesian_path import (
+from robot_arm_trajectory.cartesian_space.cartesian_path import (
     quaternion_to_rotation,
     rotation_to_quaternion,
 )

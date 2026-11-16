@@ -9,8 +9,12 @@ import pytest
 from robot_arm_kinematics.forward_kinematics import forward_kinematics
 from robot_arm_kinematics.robot_model import RobotModel
 
-from robot_arm_trajectory.cartesian_path import generate_linear_cartesian_path
-from robot_arm_trajectory.joint_trajectory import generate_joint_trajectory
+from robot_arm_trajectory.cartesian_space.cartesian_path import (
+    generate_linear_cartesian_path,
+)
+from robot_arm_trajectory.joint_space.joint_trajectory import (
+    generate_joint_trajectory,
+)
 from robot_arm_trajectory.preview_utils import (
     build_playback_samples,
     due_sample_indices,

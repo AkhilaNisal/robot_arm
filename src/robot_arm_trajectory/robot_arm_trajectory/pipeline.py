@@ -1,4 +1,4 @@
-"""End-to-end Cartesian path to joint trajectory orchestration."""
+"""Coordinate Cartesian or joint-space planning and time parameterization."""
 
 from dataclasses import dataclass
 
@@ -6,17 +6,20 @@ import numpy as np
 
 from robot_arm_kinematics.forward_kinematics import forward_kinematics
 
-from .cartesian_ik import (
+from .cartesian_space.cartesian_ik import (
     CartesianIKResult,
     solve_cartesian_path,
-    solve_ik_with_restarts,
 )
-from .cartesian_path import (
+from .cartesian_space.cartesian_path import (
     generate_arc_cartesian_path,
     generate_linear_cartesian_path,
     validate_pose,
 )
-from .joint_trajectory import generate_joint_trajectory, JointTrajectory
+from .joint_space.planner import plan_joint_space
+from .joint_space.joint_trajectory import (
+    generate_joint_trajectory,
+    JointTrajectory,
+)
 
 
 @dataclass
@@ -99,27 +102,16 @@ def generate_cartesian_joint_trajectory(
             max_refinement_depth=max_refinement_depth,
         )
     elif path_method == 'joint_space':
-        endpoint = solve_ik_with_restarts(ik_solver, target, q)
-        if not endpoint.success:
+        ik_result, cartesian_path, joint_space_error = plan_joint_space(
+            robot_model, ik_solver, q, target, num_waypoints
+        )
+        if joint_space_error is not None:
             return CartesianJointTrajectoryResult(
                 success=False, cartesian_path=None, ik_result=None,
                 joint_trajectory=None,
-                message=f'Goal-pose IK failed: {endpoint.message}',
+                message=f'Goal-pose IK failed: {joint_space_error}',
                 failed_stage='ik',
             )
-        end_q = robot_model.enforce_joint_limits(
-            np.asarray(endpoint.joint_positions, dtype=float)
-        )
-        joint_waypoints = np.linspace(q, end_q, num_waypoints)
-        cartesian_path = [
-            forward_kinematics(robot_model, configuration)
-            for configuration in joint_waypoints
-        ]
-        ik_result = CartesianIKResult(
-            joint_trajectory=[row.copy() for row in joint_waypoints],
-            success=True, failed_waypoint=-1,
-            message='Joint-space path generated from endpoint IK.',
-        )
     else:
         raise ValueError(
             'path_method must be cartesian_linear, cartesian_arc, or '

@@ -8,9 +8,9 @@ from visualization_msgs.msg import InteractiveMarker
 from visualization_msgs.msg import InteractiveMarkerControl
 from visualization_msgs.msg import Marker
 
-from .cartesian_path import quaternion_to_rotation
+from .cartesian_space.cartesian_path import quaternion_to_rotation
 from .pipeline import generate_cartesian_joint_trajectory
-from .cartesian_ik import solve_ik_with_restarts
+from .cartesian_space.cartesian_ik import solve_ik_with_restarts
 
 
 def load_preview_config(path):
@@ -105,7 +105,10 @@ def pose_message_to_matrix(pose):
 
 def matrix_to_pose_message(matrix):
     """Convert a homogeneous transform to a normalized ROS pose message."""
-    from .cartesian_path import rotation_to_quaternion, validate_pose
+    from .cartesian_space.cartesian_path import (
+        rotation_to_quaternion,
+        validate_pose,
+    )
 
     import numpy as np
 

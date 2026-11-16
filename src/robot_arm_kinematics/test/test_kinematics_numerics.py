@@ -18,8 +18,12 @@ from robot_arm_kinematics.inverse_kinematics.pseudoinverse import (
 )
 from robot_arm_kinematics.jacobian import calculate_jacobian
 from robot_arm_kinematics.robot_model import RobotModel
-from robot_arm_trajectory.cartesian_ik import solve_cartesian_path
-from robot_arm_trajectory.cartesian_path import generate_linear_cartesian_path
+from robot_arm_trajectory.cartesian_space.cartesian_ik import (
+    solve_cartesian_path,
+)
+from robot_arm_trajectory.cartesian_space.cartesian_path import (
+    generate_linear_cartesian_path,
+)
 
 
 def _robot():

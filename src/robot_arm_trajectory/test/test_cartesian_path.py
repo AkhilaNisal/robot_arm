@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation
 
-from robot_arm_trajectory.cartesian_path import (
+from robot_arm_trajectory.cartesian_space.cartesian_path import (
     generate_linear_cartesian_path,
     quaternion_slerp,
     quaternion_to_rotation,
