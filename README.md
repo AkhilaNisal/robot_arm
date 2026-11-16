@@ -1,8 +1,8 @@
 # ROS 2 Robot Arm Trajectory Preview
 
-ROS 2 Jazzy workspace for a generic six-axis arm and the GP8 arm. The current
-workflow plans and visualizes trajectories in RViz. It does not drive Gazebo
-or hardware controllers.
+ROS 2 Jazzy workspace for a generic six-axis arm and the GP8 arm. The trajectory
+preview plans and visualizes in RViz; a separate GP8 package executes a
+pick-and-place demo in Gazebo Sim through `gz_ros2_control`.
 
 Requirements: Ubuntu 24.04, ROS 2 Jazzy, Python 3, NumPy, SciPy, and PyYAML.
 Matplotlib is needed only for optional trajectory plots.
@@ -128,6 +128,24 @@ Interpolation and time parameterization are shared by all path methods. Both
 produce a time-parameterized joint trajectory that is checked for joint
 limits, velocity limits, and applicable Cartesian tracking before playback.
 
+## Gazebo pick and place
+
+Build and launch the separate simulation package:
+
+```bash
+colcon build --packages-up-to robot_arm_gazebo
+source install/setup.bash
+ros2 launch robot_arm_gazebo gp8_pick_place.launch.py
+```
+
+RViz provides Initial, Pick, and Place markers. Select **Interact**, move the
+markers, and choose **Plan and Execute Pick & Place** from a marker menu. Set
+`pose_input_mode:=yaml` to use the three poses in the package YAML instead.
+The same YAML selects Cartesian line, raised arc, or joint-space planning,
+interpolation, timing, IK, and approach height for each segment. See the
+[`robot_arm_gazebo` guide](src/robot_arm_gazebo/README.md) for the full option
+list and grasp behavior.
+
 ## Package guides
 
 - [`robot_arm_description`](src/robot_arm_description/README.md): launch files,
@@ -136,3 +154,5 @@ limits, velocity limits, and applicable Cartesian tracking before playback.
   models, joint limits, FK, Jacobian, and IK solvers.
 - [`robot_arm_trajectory`](src/robot_arm_trajectory/README.md): path planning,
   interpolation, timing, validation, plotting, and preview details.
+- [`robot_arm_gazebo`](src/robot_arm_gazebo/README.md): GP8 Gazebo Sim pick and
+  place bringup, RViz pose selection, controller execution, and YAML options.

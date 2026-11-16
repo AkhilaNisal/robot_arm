@@ -1,0 +1,36 @@
+# Poses are base_link-frame TCP poses, xyz in metres and quaternion xyzw.
+# Pick/place targets are shifted outward from the base to clear the table edge.
+poses:
+  initial:
+    position: [0.62994895, -0.00392611, 0.81400220]
+    orientation_xyzw: [0.70704490, -0.00925572, 0.70704752, 0.00925391]
+  pick:
+    position: [0.62, 0.0, 0.625]
+    orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+  place:
+    position: [0.58, 0.32, 0.625]
+    orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+
+pick_place:
+  pose_input_mode: rviz
+  path_method: joint_space
+  cartesian_arc_height: 0.08
+  num_cartesian_waypoints: 20
+  duration: 3.0
+  num_samples: 91
+  interpolation_method: cubic_spline
+  interpolation_options:
+    bc_type: not-a-knot
+  time_parameterization_method: quintic_scaling
+  time_parameterization_options: {}
+  ik_solver: damped_least_squares
+  max_joint_waypoint_step: 0.5
+  max_cartesian_refinement_depth: 8
+  approach_height: 0.10
+  gripper_open_position: 0.0
+  gripper_closed_position: 0.015
+  # The closed finger gap is about 0.04 m; this gives a small compression fit.
+  cube_size: 0.045
+  cube_grasp_follow_rate: 100.0
+  grasp_offset: [0.0, 0.0, 0.0]
+  grasp_tolerance: 0.10
