@@ -20,8 +20,10 @@
   <exec_depend>robot_arm_description</exec_depend>
   <exec_depend>robot_arm_kinematics</exec_depend>
   <exec_depend>robot_arm_trajectory</exec_depend>
+  <exec_depend>robot_arm_rviz_panel</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
   <exec_depend>trajectory_msgs</exec_depend>
   <exec_depend>control_msgs</exec_depend>
   <exec_depend>rosgraph_msgs</exec_depend>

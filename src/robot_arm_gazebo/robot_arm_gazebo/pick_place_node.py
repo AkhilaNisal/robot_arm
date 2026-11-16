@@ -1,9 +1,11 @@
 """Plan and execute a configurable GP8 pick-and-place sequence in Gazebo."""
 
 from pathlib import Path
+import json
+import time
 
 from ament_index_python.packages import get_package_share_directory
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Point, Pose
 from interactive_markers import InteractiveMarkerServer, MenuHandler
 from robot_arm_kinematics.forward_kinematics import forward_kinematics
 from robot_arm_kinematics.inverse_kinematics.damped_least_squares import (
@@ -20,6 +22,7 @@ import numpy as np
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from robot_arm_trajectory.cartesian_space.cartesian_path import (
     quaternion_to_rotation,
     rotation_to_quaternion,
@@ -28,6 +31,7 @@ from robot_arm_trajectory.interactive_poses import matrix_to_pose_message
 from robot_arm_trajectory.pipeline import generate_cartesian_joint_trajectory
 from robot_arm_trajectory.preview_utils import prepare_preview_data
 from sensor_msgs.msg import JointState
+from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from control_msgs.action import FollowJointTrajectory
@@ -182,6 +186,9 @@ class PickPlaceNode(Node):
         )
         self.state = 'idle'
         self.plans = []
+        self.reference_path_points = []
+        self.actual_path_points = []
+        self.last_actual_path_publish = 0.0
         self.segment_index = 0
         self.pending = None
         self.attached = False
@@ -194,6 +201,19 @@ class PickPlaceNode(Node):
         )
         self._publish_timer = self.create_timer(1.0 / follow_rate, self._tick)
         self.joint_state_pub = self.create_publisher(JointState, '/joint_states', 10)
+        path_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.reference_path_pub = self.create_publisher(
+            Marker, '/trajectory_preview/reference_path', path_qos
+        )
+        self.actual_path_pub = self.create_publisher(
+            Marker, '/trajectory_preview/actual_path', path_qos
+        )
+        self.trajectory_plot_pub = self.create_publisher(
+            String, '/trajectory_preview/trajectory_data', path_qos
+        )
+        self.planning_progress_pub = self.create_publisher(
+            String, '/gp8_pick_place/planning_progress', 10
+        )
         self.current_arm_configuration = np.zeros(self.robot.dof)
         self.have_joint_state = False
         self.create_subscription(
@@ -329,6 +349,69 @@ class PickPlaceNode(Node):
         marker.color.a = 0.9
         self.box_a_marker_pub.publish(marker)
 
+    def _publish_path_marker(self, publisher, points, namespace, color):
+        if not points:
+            return
+        marker = Marker()
+        marker.header.frame_id = 'base_link'
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = namespace
+        marker.id = 0
+        marker.type = Marker.LINE_STRIP
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 0.015
+        marker.color.r, marker.color.g, marker.color.b, marker.color.a = color
+        marker.points = [Point(x=x, y=y, z=z) for x, y, z in points]
+        publisher.publish(marker)
+
+    def _publish_planning_progress(self, percent, status):
+        message = String()
+        message.data = f'{int(percent)}|{status}'
+        self.planning_progress_pub.publish(message)
+
+    def _delete_path_marker(self, publisher, namespace):
+        marker = Marker()
+        marker.header.frame_id = 'base_link'
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = namespace
+        marker.id = 0
+        marker.action = Marker.DELETE
+        publisher.publish(marker)
+
+    def _publish_trajectory_plot_data(self):
+        if not self.plans:
+            return
+        times = []
+        positions = []
+        velocities = []
+        accelerations = []
+        jerks = []
+        time_offset = 0.0
+        all_jerks_available = True
+        for plan_index, trajectory in enumerate(self.plans):
+            local_time = trajectory.time - trajectory.time[0] + time_offset
+            start = 0 if plan_index == 0 else 1
+            times.extend(local_time[start:].tolist())
+            positions.extend(trajectory.positions[start:].tolist())
+            velocities.extend(trajectory.velocities[start:].tolist())
+            accelerations.extend(trajectory.accelerations[start:].tolist())
+            if trajectory.jerks is None:
+                all_jerks_available = False
+            else:
+                jerks.extend(trajectory.jerks[start:].tolist())
+            time_offset = float(local_time[-1])
+        message = String()
+        message.data = json.dumps({
+            'joint_names': self.robot.joint_names,
+            'time': times,
+            'positions': positions,
+            'velocities': velocities,
+            'accelerations': accelerations,
+            'jerks': jerks if all_jerks_available else None,
+        })
+        self.trajectory_plot_pub.publish(message)
+
     def _joint_state_cb(self, message):
         positions = dict(zip(message.name, message.position))
         if all(name in positions for name in self.robot.joint_names):
@@ -336,6 +419,30 @@ class PickPlaceNode(Node):
                 [positions[name] for name in self.robot.joint_names], dtype=float
             )
             self.have_joint_state = True
+            moving_states = {
+                'moving_to_initial', 'moving_to_pick_approach', 'moving_to_pick',
+                'lifting', 'transferring', 'placing', 'retreating', 'returning',
+            }
+            if self.state in moving_states:
+                position = forward_kinematics(
+                    self.robot, self.current_arm_configuration
+                )[:3, 3]
+                if (
+                    not self.actual_path_points
+                    or np.linalg.norm(
+                        position - np.asarray(self.actual_path_points[-1])
+                    ) > 0.001
+                ):
+                    self.actual_path_points.append(tuple(map(float, position)))
+                    now = time.monotonic()
+                    if now - self.last_actual_path_publish >= 0.1:
+                        self._publish_path_marker(
+                            self.actual_path_pub,
+                            self.actual_path_points,
+                            'actual_path',
+                            (0.12, 0.95, 0.24, 1.0),
+                        )
+                        self.last_actual_path_publish = now
 
     def _menu_cb(self, feedback):
         if feedback.menu_entry_id == self.reset_menu_id:
@@ -373,6 +480,12 @@ class PickPlaceNode(Node):
         if not self.cube_pose_client.wait_for_service(timeout_sec=0.2):
             self.get_logger().error('Gazebo set_pose service is unavailable.')
             return False
+        self.reference_path_points = []
+        self.actual_path_points = []
+        self.last_actual_path_publish = 0.0
+        self._publish_planning_progress(0, 'Preparing pick and place plan')
+        self._delete_path_marker(self.reference_path_pub, 'reference_path')
+        self._delete_path_marker(self.actual_path_pub, 'actual_path')
         self.state = 'syncing_cube'
         self._set_cube_pose(
             self._cube_transform_from_pick(), self._cube_sync_response
@@ -385,10 +498,12 @@ class PickPlaceNode(Node):
         return transform
 
     def _plan_and_start(self):
+        self._publish_planning_progress(0, 'Planning 0 of 8 segments')
         try:
             self.plans = self._plan_all_segments()
         except (ValueError, RuntimeError, np.linalg.LinAlgError) as error:
             self.state = 'failed'
+            self._publish_planning_progress(0, f'Planning failed: {error}')
             self.get_logger().error(f'Pick/place planning failed: {error}')
             return False
         if not self.plans:
@@ -397,6 +512,18 @@ class PickPlaceNode(Node):
         self.segment_index = 0
         self.state = 'opening'
         self.pending = None
+        self._publish_path_marker(
+            self.reference_path_pub,
+            self.reference_path_points,
+            'reference_path',
+            (0.12, 0.35, 1.0, 1.0),
+        )
+        self._publish_trajectory_plot_data()
+        self._publish_planning_progress(100, 'Plan ready; executing')
+        self.get_logger().info(
+            f'Published reference path ({len(self.reference_path_points)} points) '
+            'on /trajectory_preview/reference_path.'
+        )
         self.get_logger().info(
             f'All {len(self.plans)} motion segments validated; executing.'
         )
@@ -429,7 +556,12 @@ class PickPlaceNode(Node):
         ]
         q = self.current_arm_configuration.copy()
         plans = []
+        total_segments = len(targets)
         for index, target in enumerate(targets):
+            self._publish_planning_progress(
+                100.0 * index / total_segments,
+                f'Planning segment {index + 1} of {total_segments}',
+            )
             result = generate_cartesian_joint_trajectory(
                 robot_model=self.robot,
                 ik_solver=self.solver,
@@ -460,8 +592,21 @@ class PickPlaceNode(Node):
                     f'Segment {index + 1} validation failed: '
                     + '; '.join(checked.validation.errors)
                 )
+            for point in checked.reference_points:
+                if (
+                    not self.reference_path_points
+                    or np.linalg.norm(
+                        np.asarray(point)
+                        - np.asarray(self.reference_path_points[-1])
+                    ) > 1e-6
+                ):
+                    self.reference_path_points.append(tuple(map(float, point)))
             plans.append(result.joint_trajectory)
             q = result.joint_trajectory.positions[-1].copy()
+            self._publish_planning_progress(
+                100.0 * (index + 1) / total_segments,
+                f'Validated segment {index + 1} of {total_segments}',
+            )
         return plans
 
     def _tick(self):
@@ -516,6 +661,14 @@ class PickPlaceNode(Node):
             self._send_arm(self.plans[7])
         elif self.state == 'returning' and self.pending is None:
             self.state = 'completed'
+            if self.actual_path_points:
+                self._publish_path_marker(
+                    self.actual_path_pub,
+                    self.actual_path_points,
+                    'actual_path',
+                    (0.12, 0.95, 0.24, 1.0),
+                )
+            self._publish_planning_progress(100, 'Pick and place completed')
             self.get_logger().info('Pick and place completed.')
         if self.attached and not self.cube_update_pending:
             self._update_attached_cube()

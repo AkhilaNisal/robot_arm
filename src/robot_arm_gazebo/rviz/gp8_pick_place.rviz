@@ -11,6 +11,8 @@ Panels:
         - /Interactive Poses1
       Splitter Ratio: 0.5
     Tree Height: 600
+  - Class: robot_arm_rviz_panel/PlanningProgressPanel
+    Name: Pick and Place Progress
 Visualization Manager:
   Class: ""
   Displays:

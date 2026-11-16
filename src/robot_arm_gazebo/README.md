@@ -25,6 +25,18 @@ Launch the separate Box A / Box B assignment world with:
 ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py
 ```
 
+The planner publishes the concatenated reference TCP path and measured TCP
+path to `/trajectory_preview/reference_path` and
+`/trajectory_preview/actual_path` for the configured RViz displays. To open
+joint position, velocity, acceleration, and jerk graphs, enable the optional
+plot window:
+
+```bash
+ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py plot_trajectory:=true
+```
+
+Leave `plot_trajectory:=false` (the default) to run without the graph window.
+
 This starts a ground plane, Box A, the GP8, and Box B. Box A is composed into
 the Gazebo world from YAML before Gazebo starts, so it appears as a world model
 in the Gazebo Entity Tree. RViz also displays a Box A marker from the same pose.

@@ -1,5 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler, SetEnvironmentVariable
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, EnvironmentVariable, FindExecutable, LaunchConfiguration, PathJoinSubstitution
@@ -20,6 +21,7 @@ def generate_launch_description():
     world_name = LaunchConfiguration('world_name')
     cube_name = LaunchConfiguration('cube_name')
     gz_partition = LaunchConfiguration('gz_partition')
+    plot_trajectory = LaunchConfiguration('plot_trajectory')
     world_clock = ['/world/', world_name, '/clock']
     world_set_pose = ['/world/', world_name, '/set_pose']
     gz_args = ['-r -v 2 ', world]
@@ -104,6 +106,10 @@ def generate_launch_description():
         arguments=['-d', rviz_config], parameters=[{'use_sim_time': True}],
         remappings=[('/clock', world_clock)],
     )
+    plotter = Node(
+        package='robot_arm_trajectory', executable='trajectory_plot',
+        output='screen', condition=IfCondition(plot_trajectory),
+    )
     planner = Node(
         package='robot_arm_gazebo', executable='pick_place', output='screen',
         parameters=[{
@@ -139,6 +145,7 @@ def generate_launch_description():
         DeclareLaunchArgument('world_name', default_value='pick_place'),
         DeclareLaunchArgument('cube_name', default_value='gp8_demo_cube'),
         DeclareLaunchArgument('gz_partition', default_value='robot_arm_gp8_pick_place'),
+        DeclareLaunchArgument('plot_trajectory', default_value='false'),
         DeclareLaunchArgument('cube_initial_pose', default_value='0.62 0.0 0.625'),
         DeclareLaunchArgument('cube_size', default_value='0.045'),
         DeclareLaunchArgument('world', default_value=PathJoinSubstitution([
@@ -154,6 +161,6 @@ def generate_launch_description():
         RegisterEventHandler(OnProcessExit(target_action=gripper_controller,
                                            on_exit=[spawn_cube])),
         RegisterEventHandler(OnProcessExit(target_action=spawn_cube,
-                                           on_exit=[rviz, planner])),
+                                           on_exit=[rviz, plotter, planner])),
         spawn_robot,
     ])

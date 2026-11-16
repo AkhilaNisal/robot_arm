@@ -1,0 +1,7 @@
+<library path="robot_arm_rviz_panel">
+  <class name="robot_arm_rviz_panel/PlanningProgressPanel"
+         type="robot_arm_rviz_panel::PlanningProgressPanel"
+         base_class_type="rviz_common::Panel">
+    <description>Progress for GP8 pick and place planning.</description>
+  </class>
+</library>
