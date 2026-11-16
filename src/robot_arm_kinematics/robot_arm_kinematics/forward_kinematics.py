@@ -51,32 +51,6 @@ def forward_kinematics(robot, q):
     if not np.all(np.isfinite(q)):
         raise ValueError("Joint angles must be finite.")
 
-    if robot.name.lower() == 'gp8':
-        from scipy.spatial.transform import Rotation
-
-        chain = [
-            ((0, 0, .33), (0, 0, -.02618), (0, 0, -1)),
-            ((.039986, .0010471, 0), (1.5708, 0, 0), (0, 0, 1)),
-            ((0, .445, 0), (0, 0, 1.5708), (0, 0, 1)),
-            ((.039, 0, 0), (1.5708, 0, 0), (0, 0, -1)),
-            ((0, -.011518, .43985), (-1.5708, 0, 0), (0, 0, 1)),
-            ((0, 0, 0), (1.5708, 0, 0), (0, 0, -1)),
-            ((0, 0, .15), (0, 0, 0), None),
-        ]
-        T = np.eye(4)
-        for index, (translation, rpy, axis) in enumerate(chain):
-            origin = np.eye(4)
-            origin[:3, :3] = Rotation.from_euler('xyz', rpy).as_matrix()
-            origin[:3, 3] = translation
-            T = T @ origin
-            if axis is not None:
-                joint_rotation = np.eye(4)
-                joint_rotation[:3, :3] = Rotation.from_rotvec(
-                    np.asarray(axis, dtype=float) * q[index]
-                ).as_matrix()
-                T = T @ joint_rotation
-        return T
-
     T = robot.base_transform.copy()
 
     for i in range(robot.dof):
@@ -89,4 +63,4 @@ def forward_kinematics(robot, q):
             a, alpha, d, theta
         )
 
-    return T
+    return T @ robot.tool_transform

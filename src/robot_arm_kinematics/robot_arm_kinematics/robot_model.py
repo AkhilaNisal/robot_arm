@@ -33,18 +33,12 @@ class RobotModel:
             )
 
         # Base transformation
-        translation = np.asarray(
-            robot_config['base_transform']['translation'],
-            dtype=float
+        self.base_transform = self._load_transform(
+            robot_config['base_transform'], 'Base'
         )
-
-        if translation.shape != (3,):
-            raise ValueError(
-                "Base translation must contain three values."
-            )
-
-        self.base_transform = np.eye(4)
-        self.base_transform[:3, 3] = translation
+        self.tool_transform = self._load_transform(
+            robot_config.get('tool_transform', {}), 'Tool'
+        )
 
         # Load DH parameters
         dh_data = robot_config['dh_parameters']
@@ -114,6 +108,34 @@ class RobotModel:
 
         print(f"Robot model loaded: {self.name}")
         print(f"Degrees of freedom: {self.dof}")
+
+    @staticmethod
+    def _load_transform(data, label):
+        """Load translation and optional XYZ Euler rotation in degrees."""
+        translation = np.asarray(data.get('translation', [0, 0, 0]), dtype=float)
+        rpy = np.deg2rad(np.asarray(
+            data.get('rotation_rpy_deg', [0, 0, 0]), dtype=float
+        ))
+        if translation.shape != (3,) or rpy.shape != (3,):
+            raise ValueError(
+                f'{label} transform translation and rotation must each '
+                'contain three values.'
+            )
+        if not np.all(np.isfinite(translation)) or not np.all(np.isfinite(rpy)):
+            raise ValueError(f'{label} transform values must be finite.')
+        rx, ry, rz = rpy
+        cx, sx = np.cos(rx), np.sin(rx)
+        cy, sy = np.cos(ry), np.sin(ry)
+        cz, sz = np.cos(rz), np.sin(rz)
+        rotation = np.array([
+            [cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx],
+            [sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx],
+            [-sy, cy * sx, cy * cx],
+        ])
+        transform = np.eye(4)
+        transform[:3, :3] = rotation
+        transform[:3, 3] = translation
+        return transform
 
     def check_joint_limits(self, q):
         """

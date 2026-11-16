@@ -74,8 +74,9 @@ Move the Start Pose and Goal Pose interactive markers in RViz, then select
 **Plan: Joint Space** from either marker menu. The same menu contains
 **Open Gripper** and **Close Gripper**. YAML users can select `path_method`
 as `cartesian_linear`, `cartesian_arc`, or `joint_space` in the pose config;
-`cartesian_arc_height` sets the arc's rise in metres. The preview uses the GP8
-URDF chain for forward kinematics and Jacobian calculations.
+`cartesian_arc_height` sets the arc's rise in metres. GP8 forward kinematics
+and Jacobian calculations use the standard DH table and fixed base/tool
+transforms in `robot_arm_kinematics/config/gp8.yaml`.
 
 Cartesian paths constrain the tool to a line or raised arc, so they can fail
 when intermediate poses are unreachable or IK changes joint branches. Joint

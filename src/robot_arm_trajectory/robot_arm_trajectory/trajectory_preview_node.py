@@ -150,8 +150,8 @@ class TrajectoryPreviewNode(Node):
         self.declare_parameter('preview_rate', 30.0)
         self.declare_parameter('marker_publish_rate', 1.0)
         self.declare_parameter('looping', False)
-        self.declare_parameter('gripper_open_position', 0.015)
-        self.declare_parameter('gripper_closed_position', 0.0)
+        self.declare_parameter('gripper_open_position', 0.0)
+        self.declare_parameter('gripper_closed_position', 0.015)
         self.declare_parameter('startup_delay', 0.5)
         self.declare_parameter(
             'max_joint_waypoint_step',
