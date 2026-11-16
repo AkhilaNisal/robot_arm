@@ -1,5 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <robot name="gp8" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="world_name" default="pick_place" />
   <!-- Anchor the arm to the Gazebo world. Without this fixed root, gravity
        and joint reaction forces let the whole manipulator tip or slide. -->
   <link name="world" />
@@ -325,7 +326,7 @@
     <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
       <parameters>$(find robot_arm_gazebo)/config/controllers.yaml</parameters>
       <ros>
-        <remapping>/clock:=/world/pick_place/clock</remapping>
+        <remapping>/clock:=/world/$(arg world_name)/clock</remapping>
       </ros>
     </plugin>
   </gazebo>

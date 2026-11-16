@@ -1,0 +1,38 @@
+# Assignment pick/place scene. Positions are metres in base_link; orientations
+# are normalized ROS xyzw quaternions. Box A is specified by its centre pose.
+objects:
+  box_a:
+    position: [0.62, 0.25, 0.10]
+    orientation_xyzw: [0.0, 0.0, 0.0, 1.0]
+    size: [0.30, 0.30, 0.20]
+  box_b:
+    position: [0.62, -0.25, 0.025]
+    orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+    size: [0.05, 0.05, 0.05]
+
+poses:
+  initial:
+    position: [0.62994895, -0.00392611, 0.81400220]
+    orientation_xyzw: [0.70704490, -0.00925572, 0.70704752, 0.00925391]
+
+pick_place:
+  pose_input_mode: rviz
+  path_method: joint_space
+  cartesian_arc_height: 0.24
+  num_cartesian_waypoints: 30
+  duration: 4.0
+  num_samples: 121
+  interpolation_method: quintic_polynomial
+  interpolation_options: {}
+  time_parameterization_method: quintic_scaling
+  time_parameterization_options: {}
+  ik_solver: damped_least_squares
+  max_joint_waypoint_step: 0.5
+  max_cartesian_refinement_depth: 8
+  approach_height: 0.12
+  gripper_open_position: 0.0
+  gripper_closed_position: 0.015
+  cube_size: 0.05
+  cube_grasp_follow_rate: 100.0
+  grasp_offset: [0.0, 0.0, 0.0]
+  grasp_tolerance: 0.10

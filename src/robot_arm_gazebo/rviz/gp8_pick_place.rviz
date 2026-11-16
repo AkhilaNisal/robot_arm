@@ -42,6 +42,14 @@ Visualization Manager:
       Show Axes: true
       Show Visual Aids: true
     - Class: rviz_default_plugins/Marker
+      Name: Box A
+      Enabled: true
+      Marker Topic:
+        Value: /gp8_pick_place/box_a
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+    - Class: rviz_default_plugins/Marker
       Name: Reference Path
       Enabled: true
       Marker Topic:

@@ -17,6 +17,35 @@ source install/setup.bash
 ros2 launch robot_arm_gazebo gp8_pick_place.launch.py
 ```
 
+## Assignment workcell
+
+Launch the separate Box A / Box B assignment world with:
+
+```bash
+ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py
+```
+
+This starts a ground plane, Box A, the GP8, and Box B. Box A is composed into
+the Gazebo world from YAML before Gazebo starts, so it appears as a world model
+in the Gazebo Entity Tree. RViz also displays a Box A marker from the same pose.
+The task configuration
+is `config/gp8_assignment.yaml`. Box A is set to 30 × 30 × 20 cm and Box B to
+5 × 5 × 5 cm. The selected reachable Box A centre is `[0.62, 0.25, 0.10]` m;
+the GP8 cannot reach the task sheet's `[1, 1, 0]` m location from the origin.
+Box B starts at `[0.62, -0.25, 0.025]` m. The Place target is calculated from
+Box A's pose and dimensions so Box B lands at the centre of its top surface.
+
+Use RViz **Interact** to adjust the Initial, Pick, and Place markers and choose
+**Plan and Execute Pick & Place** from a marker menu. Set
+`pose_input_mode:=yaml` to make the markers read-only. The default assignment
+planner uses a raised Cartesian arc and matching Pick/Place orientations to
+keep Box B upright during the transfer.
+
+Edit `objects.box_a` or `objects.box_b` in `gp8_assignment.yaml` to change the
+box poses, orientations, or dimensions. Box B must remain a cube. Its default
+Pick marker follows the configured Box B pose, and the Place marker is computed
+from Box A's top surface. Restart the launch after editing the file.
+
 Gazebo opens with the GP8, a 4.5 cm cube sized for the gripper, and a table. RViz provides Initial,
 Pick, and Place markers. Select **Interact** to move them, then right-click a
 marker and choose **Plan and Execute Pick & Place**. The sequence opens the

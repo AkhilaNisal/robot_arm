@@ -17,10 +17,18 @@ def generate_launch_description():
     pose_mode = LaunchConfiguration('pose_input_mode')
     pose_config = LaunchConfiguration('pose_config')
     world = LaunchConfiguration('world')
+    world_name = LaunchConfiguration('world_name')
+    cube_name = LaunchConfiguration('cube_name')
+    gz_partition = LaunchConfiguration('gz_partition')
+    world_clock = ['/world/', world_name, '/clock']
+    world_set_pose = ['/world/', world_name, '/set_pose']
     gz_args = ['-r -v 2 ', world]
     xacro_path = PathJoinSubstitution([pkg, 'urdf', 'gp8_gazebo.urdf.xacro'])
     robot_description = ParameterValue(
-        Command([FindExecutable(name='xacro'), ' ', xacro_path]), value_type=str
+        Command([
+            FindExecutable(name='xacro'), ' ', xacro_path,
+            ' world_name:=', world_name,
+        ]), value_type=str
     )
     config_path = PathJoinSubstitution([pkg, 'config', 'gp8_pick_place.yaml'])
     cube_initial = LaunchConfiguration('cube_initial_pose')
@@ -28,15 +36,15 @@ def generate_launch_description():
     rviz_config = PathJoinSubstitution([pkg, 'rviz', 'gp8_pick_place.rviz'])
     spawn_robot = Node(
         package='ros_gz_sim', executable='create', output='screen',
-        arguments=['-world', 'pick_place', '-topic', 'robot_description', '-name', 'gp8',
+        arguments=['-world', world_name, '-topic', 'robot_description', '-name', 'gp8',
                    '-x', '0', '-y', '0', '-z', '0'],
     )
     spawn_cube = Node(
         package='ros_gz_sim', executable='create', output='screen',
         arguments=[
             '-string',
-            ['<sdf version="1.9"><model name="gp8_demo_cube"><pose>', cube_initial, ' 0 0 0</pose><link name="cube"><inertial><mass>0.08</mass><inertia><ixx>2.7e-5</ixx><iyy>2.7e-5</iyy><izz>2.7e-5</izz></inertia></inertial><collision name="collision"><geometry><box><size>', cube_size, ' ', cube_size, ' ', cube_size, '</size></box></geometry><surface><friction><ode><mu>3.0</mu><mu2>3.0</mu2></ode></friction><contact><ode><kp>1000000</kp><kd>100</kd></ode></contact></surface></collision><visual name="visual"><geometry><box><size>', cube_size, ' ', cube_size, ' ', cube_size, '</size></box></geometry><material><ambient>0.9 0.15 0.08 1</ambient><diffuse>0.95 0.2 0.1 1</diffuse></material></visual></link></model></sdf>'],
-            '-world', 'pick_place', '-name', 'gp8_demo_cube',
+            ['<sdf version="1.9"><model name="', cube_name, '"><pose>', cube_initial, ' 0 0 0</pose><link name="cube"><inertial><mass>0.08</mass><inertia><ixx>2.7e-5</ixx><iyy>2.7e-5</iyy><izz>2.7e-5</izz></inertia></inertial><collision name="collision"><geometry><box><size>', cube_size, ' ', cube_size, ' ', cube_size, '</size></box></geometry><surface><friction><ode><mu>3.0</mu><mu2>3.0</mu2></ode></friction><contact><ode><kp>1000000</kp><kd>100</kd></ode></contact></surface></collision><visual name="visual"><geometry><box><size>', cube_size, ' ', cube_size, ' ', cube_size, '</size></box></geometry><material><ambient>0.9 0.15 0.08 1</ambient><diffuse>0.95 0.2 0.1 1</diffuse></material></visual></link></model></sdf>'],
+            '-world', world_name, '-name', cube_name,
         ],
     )
     broadcaster = Node(
@@ -77,24 +85,24 @@ def generate_launch_description():
         output='screen', parameters=[{'robot_description': robot_description,
                                       'use_sim_time': True}],
         remappings=[
-            ('/clock', '/world/pick_place/clock'),
+            ('/clock', world_clock),
         ],
     )
     bridge = Node(
         package='ros_gz_bridge', executable='parameter_bridge', output='screen',
         arguments=[
-            '/world/pick_place/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-            '/world/pick_place/set_pose@ros_gz_interfaces/srv/SetEntityPose',
+            world_clock + ['@rosgraph_msgs/msg/Clock[gz.msgs.Clock'],
+            world_set_pose + ['@ros_gz_interfaces/srv/SetEntityPose'],
         ],
         remappings=[
-            ('/world/pick_place/set_pose',
-             '/gp8_pick_place_sim/world/pick_place/set_pose'),
+            (world_set_pose,
+             ['/gp8_pick_place_sim/world/', world_name, '/set_pose']),
         ],
     )
     rviz = Node(
         package='rviz2', executable='rviz2', output='screen',
         arguments=['-d', rviz_config], parameters=[{'use_sim_time': True}],
-        remappings=[('/clock', '/world/pick_place/clock')],
+        remappings=[('/clock', world_clock)],
     )
     planner = Node(
         package='robot_arm_gazebo', executable='pick_place', output='screen',
@@ -104,15 +112,17 @@ def generate_launch_description():
             ]),
             'pose_config': pose_config,
             'pose_input_mode': pose_mode,
+            'world_name': world_name,
+            'cube_name': cube_name,
             'use_sim_time': True,
         }],
         remappings=[
-            ('/clock', '/world/pick_place/clock'),
+            ('/clock', world_clock),
         ],
     )
     return LaunchDescription([
         SetEnvironmentVariable(
-            name='GZ_PARTITION', value='robot_arm_gp8_pick_place'
+            name='GZ_PARTITION', value=gz_partition
         ),
         SetEnvironmentVariable(
             name='GZ_SIM_RESOURCE_PATH',
@@ -126,6 +136,9 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('pose_input_mode', default_value='config'),
         DeclareLaunchArgument('pose_config', default_value=config_path),
+        DeclareLaunchArgument('world_name', default_value='pick_place'),
+        DeclareLaunchArgument('cube_name', default_value='gp8_demo_cube'),
+        DeclareLaunchArgument('gz_partition', default_value='robot_arm_gp8_pick_place'),
         DeclareLaunchArgument('cube_initial_pose', default_value='0.62 0.0 0.625'),
         DeclareLaunchArgument('cube_size', default_value='0.045'),
         DeclareLaunchArgument('world', default_value=PathJoinSubstitution([

@@ -10,11 +10,17 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/gp8_pick_place.launch.py']),
+        ('share/' + package_name + '/launch', [
+            'launch/gp8_pick_place.launch.py',
+            'launch/gp8_assignment_pick_place.launch.py',
+        ]),
         ('share/' + package_name + '/config', [
             'config/controllers.yaml', 'config/gp8_pick_place.yaml',
+            'config/gp8_assignment.yaml',
         ]),
-        ('share/' + package_name + '/worlds', ['worlds/pick_place.sdf']),
+        ('share/' + package_name + '/worlds', [
+            'worlds/pick_place.sdf', 'worlds/gp8_assignment.sdf',
+        ]),
         ('share/' + package_name + '/urdf', ['urdf/gp8_gazebo.urdf.xacro']),
         ('share/' + package_name + '/rviz', ['rviz/gp8_pick_place.rviz']),
     ],

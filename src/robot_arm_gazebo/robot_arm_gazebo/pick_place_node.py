@@ -52,6 +52,8 @@ class PickPlaceNode(Node):
         self.declare_parameter('robot_config', '')
         self.declare_parameter('pose_config', default_config)
         self.declare_parameter('pose_input_mode', 'rviz')
+        self.declare_parameter('world_name', 'pick_place')
+        self.declare_parameter('cube_name', 'gp8_demo_cube')
         path = Path(self.get_parameter('pose_config').value)
         try:
             data = yaml.safe_load(path.read_text())
@@ -60,16 +62,23 @@ class PickPlaceNode(Node):
         if not isinstance(data, dict) or not isinstance(data.get('poses'), dict):
             raise ValueError('Pick/place YAML needs a top-level poses mapping.')
         self.options = data.get('pick_place', {})
+        object_data = data.get('objects') or {}
         self.cube_initial = np.asarray(self.options.get(
-            'cube_initial_pose', data['poses']['pick'].get(
-                'position', [0.52, 0.0, 0.625]
+            'cube_initial_pose', object_data.get('box_b', {}).get(
+                'position', data.get('poses', {}).get('pick', {}).get(
+                    'position', [0.52, 0.0, 0.625]
+                )
             )
         ), dtype=float)
         self.cube_place = np.asarray(self.options.get(
-            'cube_place_pose', data['poses']['place'].get(
-                'position', [0.48, 0.32, 0.625]
+            'cube_place_pose', data.get('poses', {}).get('place', {}).get(
+                'position', object_data.get('box_a', {}).get(
+                    'position', [0.48, 0.32, 0.625]
+                )
             )
         ), dtype=float)
+        self.world_name = str(self.get_parameter('world_name').value)
+        self.cube_name = str(self.get_parameter('cube_name').value)
         self.pose_mode = str(self.get_parameter('pose_input_mode').value).lower()
         if self.pose_mode == 'config':
             self.pose_mode = str(
@@ -84,10 +93,43 @@ class PickPlaceNode(Node):
                 / 'config/gp8.yaml'
             )
         self.robot = RobotModel(robot_config)
+        pose_config = data['poses']
+        object_config = object_data
         self.poses = {
-            name: self._load_pose(data['poses'].get(name), name)
-            for name in self.POSES
+            'initial': self._load_pose(pose_config.get('initial'), 'initial')
         }
+        box_b_config = object_config.get('box_b')
+        box_a_config = object_config.get('box_a')
+        self.box_a_transform = None
+        self.box_a_size = None
+        if isinstance(box_b_config, dict):
+            self.poses['pick'] = self._load_pose(box_b_config, 'objects.box_b')
+        else:
+            self.poses['pick'] = self._load_pose(pose_config.get('pick'), 'pick')
+        if isinstance(box_a_config, dict) and isinstance(box_b_config, dict):
+            self.poses['place'] = self._load_pose(
+                box_b_config, 'objects.box_b'
+            )
+            box_a_transform = self._load_pose(box_a_config, 'objects.box_a')
+            box_a_size = np.asarray(box_a_config.get('size'), dtype=float)
+            box_b_size = np.asarray(box_b_config.get('size'), dtype=float)
+            if box_a_size.shape != (3,) or box_b_size.shape != (3,):
+                raise ValueError('Box A and Box B sizes must each contain xyz.')
+            self.box_a_transform = box_a_transform
+            self.box_a_size = box_a_size
+            self.poses['place'][:3, 3] = box_a_transform[:3, 3] + (
+                box_a_transform[:3, :3]
+                @ np.array([0.0, 0.0, (box_a_size[2] + box_b_size[2]) / 2.0])
+            )
+        else:
+            self.poses['place'] = self._load_pose(
+                pose_config.get('place'), 'place'
+            )
+        self.cube_spawn_transform = (
+            self._load_pose(box_b_config, 'objects.box_b')
+            if isinstance(box_b_config, dict)
+            else self.poses['pick'].copy()
+        )
         self.pose_defaults = {name: pose.copy() for name, pose in self.poses.items()}
         self.solver = self._make_solver(self.options.get(
             'ik_solver', 'damped_least_squares'
@@ -123,8 +165,6 @@ class PickPlaceNode(Node):
         )
         self.open_value = float(self.options.get('gripper_open_position', 0.0))
         self.closed_value = float(self.options.get('gripper_closed_position', 0.015))
-        self.world_name = 'pick_place'
-        self.cube_name = 'gp8_demo_cube'
         self.arm_client = ActionClient(
             self, FollowJointTrajectory,
             '/arm_controller/follow_joint_trajectory'
@@ -161,6 +201,13 @@ class PickPlaceNode(Node):
         )
         self.pose_server = InteractiveMarkerServer(self, '/gp8_pick_place/poses')
         self._setup_markers()
+        if self.box_a_transform is not None:
+            self.box_a_marker_pub = self.create_publisher(
+                Marker, '/gp8_pick_place/box_a', 10
+            )
+            self.box_a_marker_timer = self.create_timer(
+                0.5, self._publish_box_a_marker
+            )
         if self.pose_mode == 'yaml':
             for marker_name in self.POSES:
                 self.poses[marker_name] = self.pose_defaults[marker_name].copy()
@@ -264,6 +311,24 @@ class PickPlaceNode(Node):
         transform[:3, :3] = quaternion_to_rotation(quat)
         self.poses[feedback.marker_name] = transform
 
+    def _publish_box_a_marker(self):
+        marker = Marker()
+        marker.header.frame_id = 'base_link'
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = 'assignment_objects'
+        marker.id = 0
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+        marker.pose = matrix_to_pose_message(self.box_a_transform)
+        marker.scale.x, marker.scale.y, marker.scale.z = map(
+            float, self.box_a_size
+        )
+        marker.color.r = 0.16
+        marker.color.g = 0.42
+        marker.color.b = 0.86
+        marker.color.a = 0.9
+        self.box_a_marker_pub.publish(marker)
+
     def _joint_state_cb(self, message):
         positions = dict(zip(message.name, message.position))
         if all(name in positions for name in self.robot.joint_names):
@@ -309,8 +374,15 @@ class PickPlaceNode(Node):
             self.get_logger().error('Gazebo set_pose service is unavailable.')
             return False
         self.state = 'syncing_cube'
-        self._set_cube_position(self.cube_initial, self._cube_sync_response)
+        self._set_cube_pose(
+            self._cube_transform_from_pick(), self._cube_sync_response
+        )
         return True
+
+    def _cube_transform_from_pick(self):
+        transform = self.poses['pick'].copy()
+        transform[:3, 3] += transform[:3, :3] @ self.grasp_offset
+        return transform
 
     def _plan_and_start(self):
         try:
@@ -399,8 +471,9 @@ class PickPlaceNode(Node):
                 and self.cube_pose_client.wait_for_service(timeout_sec=0.0)
             ):
                 self.cube_init_pending = True
-                self._set_cube_position(
-                    self.cube_initial, self._cube_initial_response
+                self._set_cube_pose(
+                    self.cube_spawn_transform,
+                    self._cube_initial_response,
                 )
             return
         if self.state == 'opening':
