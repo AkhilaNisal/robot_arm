@@ -9,7 +9,7 @@ objects:
     position: [0.62, -0.25, 0.025]
     orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
     size: [0.05, 0.05, 0.05]
-
+ 
 poses:
   initial:
     position: [0.62994895, -0.00392611, 0.81400220]
@@ -19,16 +19,16 @@ pick_place:
   pose_input_mode: rviz
   path_method: joint_space
   cartesian_arc_height: 0.24
-  num_cartesian_waypoints: 30
+  num_cartesian_waypoints: 8         #  30
   duration: 4.0
-  num_samples: 121
+  num_samples: 41                    # 121
   interpolation_method: quintic_polynomial
   interpolation_options: {}
   time_parameterization_method: quintic_scaling
   time_parameterization_options: {}
   ik_solver: damped_least_squares
-  max_joint_waypoint_step: 0.5
-  max_cartesian_refinement_depth: 8
+  max_joint_waypoint_step: 0.7            # 0.5
+  max_cartesian_refinement_depth: 4   # 8
   approach_height: 0.12
   gripper_open_position: 0.0
   gripper_closed_position: 0.015
