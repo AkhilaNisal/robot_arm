@@ -190,3 +190,10 @@ and measured paths in the applicable workcell.
 
 For details about all nodes, scripts, launch files, YAML keys, examples and
 configurable values, start with each package's README linked above.
+
+## License
+
+This project is distributed under the MIT License. See [LICENSE](LICENSE).
+When sharing or redistributing this project or substantial portions of it,
+retain the copyright and permission notice. Third-party dependencies and
+assets may have separate licenses.

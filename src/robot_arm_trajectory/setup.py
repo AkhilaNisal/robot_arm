@@ -21,7 +21,7 @@ setup(
     maintainer='akhila-wedamestrige',
     maintainer_email='wedamestrigean@gmail.com',
     description='Modular joint and Cartesian trajectory generation for ROS 2.',
-    license='Apache-2.0',
+    license='MIT',
     extras_require={
         'test': [
             'pytest',

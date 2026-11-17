@@ -31,7 +31,7 @@ setup(
     maintainer='akhila-wedamestrige',
     maintainer_email='wedamestrigean@gmail.com',
     description='Gazebo Sim pick and place demo for the GP8 robot arm.',
-    license='Apache-2.0',
+    license='MIT',
     entry_points={'console_scripts': [
         'pick_place = robot_arm_gazebo.pick_place_node:main',
         'waypoint_pick_place = robot_arm_gazebo.waypoint_pick_place_node:main',
