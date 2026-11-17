@@ -143,12 +143,14 @@ def plan_selected_poses(
     start_pose,
     goal_pose,
     pipeline_options,
+    num_ik_restarts=6,
 ):
     """Solve start-pose IK, then use the existing Cartesian pipeline."""
     import numpy as np
 
     start_solution = solve_ik_with_restarts(
-        solver, start_pose, seed_configuration
+        solver, start_pose, seed_configuration,
+        num_restarts=num_ik_restarts,
     )
     if not start_solution.success:
         details = (
@@ -222,6 +224,9 @@ class InteractivePoseControls:
             'plan_joint': self.menu.insert(
                 'Plan: Joint Space', callback=self._menu_feedback
             ),
+            'plan_waypoints': self.menu.insert(
+                'Plan: Joint Space Waypoints', callback=self._menu_feedback
+            ),
             'reset_start': self.menu.insert(
                 'Reset Start Pose', callback=self._menu_feedback
             ),
@@ -246,6 +251,14 @@ class InteractivePoseControls:
             )
             self.menu_ids['workspace_hide'] = self.menu.insert(
                 'Hide Reachable Workspace', callback=self._menu_feedback
+            )
+        self.waypoint_callback = getattr(node, '_waypoint_menu_action', None)
+        if self.waypoint_callback is not None:
+            self.menu_ids['add_waypoint'] = self.menu.insert(
+                'Add Joint Space Waypoint', callback=self._menu_feedback
+            )
+            self.menu_ids['remove_waypoint'] = self.menu.insert(
+                'Remove Last Waypoint', callback=self._menu_feedback
             )
         self._insert_marker(self.START, 'Start Pose', (0.1, 0.5, 1.0, 1.0))
         self._insert_marker(self.GOAL, 'Goal Pose', (1.0, 0.35, 0.1, 1.0))
@@ -324,6 +337,8 @@ class InteractivePoseControls:
             self.workspace_callback(command.removeprefix('workspace_'))
         elif command.startswith('plan_'):
             self.menu_callback(command)
+        elif command in ('add_waypoint', 'remove_waypoint'):
+            self.waypoint_callback(command, feedback.marker_name)
         else:
             self.menu_callback(command)
 

@@ -3,7 +3,12 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    IfElseSubstitution,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -13,6 +18,8 @@ def generate_launch_description():
     kinematics_share = FindPackageShare('robot_arm_kinematics')
     trajectory_share = FindPackageShare('robot_arm_trajectory')
     pose_input_mode = LaunchConfiguration('pose_input_mode')
+    planning_mode = LaunchConfiguration('planning_mode')
+    waypoint_config = LaunchConfiguration('waypoint_config')
     preview_launch = PathJoinSubstitution([
         description_share, 'launch', 'trajectory_preview.launch.py'
     ])
@@ -23,6 +30,17 @@ def generate_launch_description():
         DeclareLaunchArgument('plot_trajectory', default_value='false'),
         DeclareLaunchArgument('workspace_samples', default_value='12000'),
         DeclareLaunchArgument('pose_input_mode', default_value='rviz'),
+        DeclareLaunchArgument(
+            'planning_mode', default_value='cartesian',
+            description='cartesian or joint_space_waypoints.',
+        ),
+        DeclareLaunchArgument(
+            'waypoint_config',
+            default_value=PathJoinSubstitution([
+                trajectory_share, 'config', 'gp8_joint_waypoints.yaml'
+            ]),
+            description='YAML file containing joint-space waypoint poses.',
+        ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(preview_launch),
             launch_arguments={
@@ -33,9 +51,26 @@ def generate_launch_description():
                     kinematics_share, 'config', 'gp8.yaml'
                 ]),
                 'pose_config': PathJoinSubstitution([
-                    trajectory_share, 'config', 'gp8_preview_poses.yaml'
+                    IfElseSubstitution(
+                        PythonExpression([
+                            "'", planning_mode,
+                            "' == 'joint_space_waypoints'",
+                        ]),
+                        waypoint_config,
+                        PathJoinSubstitution([
+                            trajectory_share, 'config',
+                            'gp8_preview_poses.yaml',
+                        ]),
+                    ),
                 ]),
-                'pose_input_mode': pose_input_mode,
+                'pose_input_mode': IfElseSubstitution(
+                    PythonExpression([
+                        "'", planning_mode,
+                        "' == 'joint_space_waypoints'",
+                    ]),
+                    'yaml',
+                    pose_input_mode,
+                ),
                 'rviz_config': PathJoinSubstitution([
                     description_share, 'rviz', 'trajectory_preview.rviz'
                 ]),

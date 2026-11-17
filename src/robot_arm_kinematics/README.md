@@ -1,9 +1,9 @@
 # Robot arm kinematics
 
-`robot_arm_kinematics` provides configurable robot models, standard
-Denavit–Hartenberg (DH) forward kinematics, a geometric Jacobian, and three
-full-pose inverse-kinematics solvers. The trajectory preview and Gazebo
-pick/place planner both use this package for GP8 FK/IK.
+`robot_arm_kinematics` is a Python library for configurable robot models,
+standard Denavit–Hartenberg (DH) forward kinematics, a geometric Jacobian and
+three full-pose inverse-kinematics solvers. The standalone preview and Gazebo
+pick/place planner both use the GP8 configuration from this package.
 
 ## Build
 
@@ -14,54 +14,57 @@ colcon build --packages-select robot_arm_kinematics
 source install/setup.bash
 ```
 
-## Robot YAML files
+## Model YAML files
 
-Configs are installed under `robot_arm_kinematics/config/`:
+Installed model files are under `robot_arm_kinematics/config/`:
 
-- `generic_robot.yaml`: original generic six-axis robot model.
-- `gp8.yaml`: GP8 model derived from its URDF joint-axis geometry.
-
-Each file describes:
-
-| Field | Units / content |
+| File | Model |
 | --- | --- |
-| `robot.name`, `robot.dof`, `robot.joint_names` | Model name, degrees of freedom and ordered joint names. |
-| `base_transform.translation` | Fixed base transform translation in metres. |
-| `base_transform.rotation_rpy_deg` | Fixed XYZ roll/pitch/yaw angles in degrees. |
-| `dh_parameters` | One standard DH row per joint: `a`, `d` in metres; `alpha_deg`; and `theta_offset_deg`. |
-| `tool_transform.translation` | Fixed TCP transform translation in metres, relative to DH chain end. |
-| `tool_transform.rotation_rpy_deg` | Fixed XYZ rotation in degrees. |
-| `joint_limits.lower_deg`, `upper_deg` | Per-joint position limits in degrees, in `joint_names` order. |
-| `joint_limits.velocity` | Per-joint maximum angular velocity in radians/second. |
+| `generic_robot.yaml` | Generic six-axis example model. |
+| `gp8.yaml` | GP8 DH chain and fixed transforms aligned with the URDF. |
 
-The GP8's base and tool transforms align the DH frames with the URDF
-`base_link` and tool center point. The same model and FK/Jacobian code serve
-both robots; GP8 has no separate hard-coded kinematic chain. If changing
-joint names or DH values, keep them consistent with the URDF/controller
-configuration and trajectory joint ordering.
+The top-level keys and units are:
+
+| Key | Content / units |
+| --- | --- |
+| `robot.name` | Display/model name. |
+| `robot.dof` | Positive integer number of joints. |
+| `robot.joint_names` | Ordered list with exactly one unique name per DOF. This order is used throughout the library and controller mapping. |
+| `base_transform.translation` | XYZ translation in metres. |
+| `base_transform.rotation_rpy_deg` | Fixed XYZ roll, pitch, yaw in degrees. |
+| `dh_parameters` | One standard DH row per joint. `a` and `d` are metres; `alpha_deg` and `theta_offset_deg` are degrees. |
+| `tool_transform.translation` | TCP translation relative to the final DH frame, metres. |
+| `tool_transform.rotation_rpy_deg` | Fixed TCP roll, pitch, yaw in degrees. |
+| `joint_limits.lower_deg`, `upper_deg` | One lower/upper angle per joint, degrees, matching `joint_names` order. |
+| `joint_limits.velocity` | Positive maximum angular speed per joint, radians/second. |
+
+Keep the joint names/order consistent with the URDF, controller YAML and
+trajectory data. The fixed GP8 base/tool transforms align the DH frames to
+`base_link` and the TCP; changing them changes pose targets and FK output.
+
+## Library modules and conventions
+
+| Module | Responsibility |
+| --- | --- |
+| `robot_model.py` | Loads and validates robot configuration; exposes DOF, joint names, limits and transforms. |
+| `forward_kinematics.py` | Builds the base-to-TCP homogeneous transform from joint values. |
+| `jacobian.py` | Calculates the geometric Jacobian and TCP transform. |
+| `inverse_kinematics/base.py` | Shared solver interface and iterative result handling. |
+| `inverse_kinematics/damped_least_squares.py` | Damped Jacobian least-squares updates. |
+| `inverse_kinematics/jacobian_transpose.py` | Jacobian-transpose updates. |
+| `inverse_kinematics/pseudoinverse.py` | Jacobian pseudoinverse updates. |
+
+Joint vectors `q` are finite radians in configured joint order. Transforms are
+4×4 homogeneous matrices; positions are metres. Full-pose IK needs a reachable
+target and a useful seed. Joint limits are enforced by the solver, but success
+does not mean a path to the target is collision-free.
 
 ## Forward kinematics and Jacobian
 
-Forward kinematics maps a joint vector in radians to a homogeneous transform
-from the configured base frame to the TCP. `calculate_jacobian()` returns the
-six-by-DOF geometric Jacobian together with the TCP transform. Joint vectors
-must follow configured joint order. Position values in transforms use metres.
-
-## Inverse kinematics choices
-
-The full-pose solvers are:
-
-- `damped_least_squares`: damped Jacobian update; often more robust near
-  singular configurations but can converge slowly or fail from poor seeds.
-- `jacobian_transpose`: iterative transpose-Jacobian update.
-- `pseudoinverse`: Jacobian pseudoinverse update.
-
-All solvers use the selected robot model and joint limits. Solver convergence
-depends on reachability, orientation, seed configuration and proximity to
-singularities. A solver success alone is not a collision-free guarantee.
-Select a solver through `ik_solver` in a trajectory YAML file.
-
-## Python API sketch
+Forward kinematics maps a joint vector to a transform from the configured base
+frame to the TCP. `calculate_jacobian()` returns the six-by-DOF geometric
+Jacobian together with the TCP transform. The upper Jacobian rows describe
+linear TCP velocity, and the lower rows describe angular velocity.
 
 ```python
 from robot_arm_kinematics.robot_model import RobotModel
@@ -76,16 +79,32 @@ tcp_transform = forward_kinematics(robot, q)
 ik = DampedLeastSquaresIK(robot)
 ```
 
-For exact function arguments and result types, see the package Python modules
-and the trajectory package's pipeline example.
+## IK solver selection and tuning
 
-## Where the configs are used
+| Solver key | Behavior |
+| --- | --- |
+| `damped_least_squares` | Adds damping to the Jacobian update; often more robust near singularities, though convergence depends on seed and tolerances. |
+| `jacobian_transpose` | Uses a transpose-Jacobian update; may need tuning for convergence speed. |
+| `pseudoinverse` | Uses a pseudoinverse update; can be sensitive near singular configurations. |
 
-- `gp8_trajectory_preview.launch.py` loads `gp8.yaml` by default.
-- `trajectory_preview.launch.py` loads `generic_robot.yaml` by default.
-- Gazebo GP8 pick/place loads `gp8.yaml` for measured TCP computation and
-  planning.
+Planner configs select the solver with `ik_solver`. Preview/Gazebo planner
+configs also provide `ik_max_iterations`, `ik_position_tolerance` (metres),
+`ik_orientation_tolerance` (radians), and `ik_restarts`. Iterations must be
+at least 1 and restart count must be 0 or greater. Smaller tolerances demand a
+closer pose match and can increase solve time or cause failure. Restarts give
+IK more seeds to try, increasing the planning work. Use values appropriate
+for the target resolution and robot; all tolerances must be positive and
+finite.
 
-Launch wrappers allow a different config where they expose `robot_config` or
-`pose_config`; the generic trajectory preview has explicit `robot_config`.
-Check the launch file's declared arguments for each entry point.
+## Consumers in this workspace
+
+- `robot_arm_description/launch/trajectory_preview.launch.py` defaults to
+  `generic_robot.yaml` and accepts a `robot_config` path.
+- `robot_arm_description/launch/gp8_trajectory_preview.launch.py` selects
+  `gp8.yaml`.
+- Gazebo's GP8 planner uses the same model for IK and measured TCP FK.
+
+The package installs a Python library rather than a standalone executable.
+Trajectory planning and the RViz/Gazebo nodes are documented in the
+[`robot_arm_trajectory`](../robot_arm_trajectory/README.md) and
+[`robot_arm_gazebo`](../robot_arm_gazebo/README.md) guides.

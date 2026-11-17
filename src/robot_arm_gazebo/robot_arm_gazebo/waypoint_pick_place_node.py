@@ -14,12 +14,18 @@ from robot_arm_trajectory.joint_space.joint_trajectory import (
     generate_joint_trajectory,
 )
 from robot_arm_trajectory.preview_utils import prepare_preview_data
+from robot_arm_trajectory.interactive_poses import pose_message_to_matrix
+from interactive_markers import InteractiveMarkerServer, MenuHandler
+from visualization_msgs.msg import InteractiveMarker, InteractiveMarkerControl
+from visualization_msgs.msg import Marker
 
 from .pick_place_node import PickPlaceNode
 
 
 class WaypointPickPlaceNode(PickPlaceNode):
     """Pick/place executor that plans a joint waypoint path for each leg."""
+
+    SUPPORTS_WAYPOINTS = True
 
     def __init__(self):
         super().__init__()
@@ -71,6 +77,15 @@ class WaypointPickPlaceNode(PickPlaceNode):
         self.waypoint_legs = self._load_waypoint_legs(
             trajectory_data.get('legs', {})
         )
+        self.waypoint_markers = []
+        self._next_waypoint_id = 1
+        self.waypoint_defaults = {
+            leg: [entry['pose'].copy() for entry in entries]
+            for leg, entries in self.waypoint_legs.items()
+        }
+        for leg, entries in self.waypoint_legs.items():
+            for entry in entries:
+                self._insert_waypoint_marker(leg, entry['pose'])
 
     @staticmethod
     def _pose_to_message(transform):
@@ -96,12 +111,128 @@ class WaypointPickPlaceNode(PickPlaceNode):
             ]
         return legs
 
+    def _add_waypoint_marker(self, leg, pose):
+        self.waypoint_legs[leg].append({'pose': np.asarray(pose).copy()})
+        self._insert_waypoint_marker(leg, pose)
+
+    def _insert_waypoint_marker(self, leg, pose):
+        if not hasattr(self, 'waypoint_server'):
+            self.waypoint_server = InteractiveMarkerServer(
+                self, '/gp8_pick_place/waypoints'
+            )
+        name = f'waypoint_{self._next_waypoint_id}'
+        self._next_waypoint_id += 1
+        marker = InteractiveMarker()
+        marker.header.frame_id = 'base_link'
+        marker.name = name
+        marker.description = f'Waypoint {name.removeprefix("waypoint_")} ({leg})'
+        marker.scale = 0.20
+        marker.pose = self._pose_to_message(pose)
+
+        visual = InteractiveMarkerControl()
+        visual.always_visible = True
+        sphere = Marker()
+        sphere.type = Marker.SPHERE
+        sphere.pose.orientation.w = 1.0
+        sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.05
+        sphere.color.r, sphere.color.g, sphere.color.b, sphere.color.a = (
+            0.95, 0.72, 0.12, 1.0
+        )
+        visual.markers.append(sphere)
+        marker.controls.append(visual)
+
+        half = 2.0 ** -0.5
+        for axis, orientation in (
+            ('x', (half, 0.0, 0.0, half)),
+            ('y', (0.0, half, 0.0, half)),
+            ('z', (0.0, 0.0, half, half)),
+        ):
+            for mode, suffix in (
+                (InteractiveMarkerControl.MOVE_AXIS, 'move'),
+                (InteractiveMarkerControl.ROTATE_AXIS, 'rotate'),
+            ):
+                control = InteractiveMarkerControl()
+                control.name = f'{axis}_{suffix}'
+                (
+                    control.orientation.x,
+                    control.orientation.y,
+                    control.orientation.z,
+                    control.orientation.w,
+                ) = map(float, orientation)
+                control.interaction_mode = mode
+                marker.controls.append(control)
+
+        self.waypoint_server.insert(
+            marker, feedback_callback=self._waypoint_feedback
+        )
+        menu = MenuHandler()
+        menu.insert(
+            'Remove This Waypoint',
+            callback=lambda feedback: self._remove_waypoint(
+                feedback.marker_name
+            ),
+        )
+        menu.apply(self.waypoint_server, name)
+        self.waypoint_server.applyChanges()
+        self.waypoint_markers.append([
+            name, leg, np.asarray(pose, dtype=float).copy()
+        ])
+
+    def _waypoint_feedback(self, feedback):
+        if feedback.event_type != feedback.POSE_UPDATE:
+            return
+        for item in self.waypoint_markers:
+            if item[0] == feedback.marker_name:
+                item[2] = pose_message_to_matrix(feedback.pose)
+                self._replace_waypoint_pose(item[1], item[0], item[2])
+                return
+
+    def _replace_waypoint_pose(self, leg, marker_name, pose):
+        entry_index = next(
+            index for index, item in enumerate(self.waypoint_markers)
+            if item[0] == marker_name
+        )
+        leg_index = sum(
+            1 for item in self.waypoint_markers[:entry_index]
+            if item[1] == leg
+        )
+        self.waypoint_legs[leg][leg_index] = {'pose': pose.copy()}
+
+    def _remove_waypoint(self, marker_name):
+        for index, item in enumerate(self.waypoint_markers):
+            if item[0] != marker_name:
+                continue
+            _, leg, _ = self.waypoint_markers.pop(index)
+            leg_index = sum(
+                1 for previous in self.waypoint_markers[:index]
+                if previous[1] == leg
+            )
+            self.waypoint_legs[leg].pop(leg_index)
+            self.waypoint_server.erase(marker_name)
+            self.waypoint_server.applyChanges()
+            return
+
+    def _reset_waypoint_markers(self):
+        if not hasattr(self, 'waypoint_server'):
+            return
+        for name, _, _ in self.waypoint_markers:
+            self.waypoint_server.erase(name)
+        self.waypoint_markers.clear()
+        self.waypoint_legs = {leg: [] for leg in self.waypoint_defaults}
+        for leg, poses in self.waypoint_defaults.items():
+            for pose in poses:
+                self.waypoint_legs[leg].append({'pose': pose.copy()})
+                self._insert_waypoint_marker(leg, pose)
+        self.waypoint_server.applyChanges()
+
     def _load_waypoint(self, value, name):
         if not isinstance(value, dict):
             raise ValueError(f'{name} must be a mapping.')
         return {'pose': self._load_pose(value, name)}
 
     def _plan_all_segments(self):
+        if self.selected_path_method != 'joint_space_waypoints':
+            return super()._plan_all_segments()
         initial = {'pose': self.poses['initial']}
         pick = {'pose': self.poses['pick']}
         place = {'pose': self.poses['place']}
@@ -143,7 +274,8 @@ class WaypointPickPlaceNode(PickPlaceNode):
                     f'{waypoint_index + 1}/{len(route)}',
                 )
                 result = solve_ik_with_restarts(
-                    self.solver, waypoint['pose'], q
+                    self.solver, waypoint['pose'], q,
+                    num_restarts=self.planner_options['ik_restarts'],
                 )
                 if not result.success:
                     raise RuntimeError(
@@ -201,6 +333,8 @@ class WaypointPickPlaceNode(PickPlaceNode):
         return plans
 
     def _tick(self):
+        if self.selected_path_method != 'joint_space_waypoints':
+            return super()._tick()
         if not self.cube_initialized:
             if (
                 not self.cube_init_pending

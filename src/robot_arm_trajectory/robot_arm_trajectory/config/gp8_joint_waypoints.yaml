@@ -1,0 +1,42 @@
+# Standalone RViz joint-space waypoint preview. Poses are TCP xyz in base_link
+# metres with ROS xyzw orientation quaternions.
+poses:
+  initial:
+    position: [0.62994895, -0.00392611, 0.81400220]
+    orientation_xyzw: [0.70704490, -0.00925572, 0.70704752, 0.00925391]
+  goal:
+    position: [0.62, 0.25, 0.225]
+    orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+
+joint_space_trajectory:
+  duration: 5.0
+  num_samples: 121
+  # Ordered TCP waypoints between initial and goal, in metres and xyzw.
+  waypoints:
+    - position: [0.62, -0.12, 0.48]
+      orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+    - position: [0.62, 0.12, 0.48]
+      orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+
+# Shared planner defaults also used when selecting Cartesian line, arc, or
+# endpoint joint-space planning from this YAML-backed RViz session.
+trajectory:
+  path_method: cartesian_linear
+  cartesian_arc_height: 0.08
+  num_cartesian_waypoints: 16
+  duration: 4.0
+  num_samples: 81
+  interpolation_method: cubic_spline
+  interpolation_options:
+    bc_type: not-a-knot
+  time_parameterization_method: quintic_scaling
+  time_parameterization_options: {}
+  ik_solver: damped_least_squares
+  max_joint_waypoint_step: 0.75
+  max_cartesian_refinement_depth: 5
+  cartesian_position_tolerance: 0.003
+  cartesian_orientation_tolerance: 0.03
+  ik_max_iterations: 250
+  ik_position_tolerance: 0.0005
+  ik_orientation_tolerance: 0.005
+  ik_restarts: 2

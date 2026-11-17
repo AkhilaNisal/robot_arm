@@ -23,7 +23,17 @@ poses:
 
 pick_place:
   pose_input_mode: rviz
+  path_method: joint_space_waypoints
   ik_solver: damped_least_squares
+  num_cartesian_waypoints: 16
+  duration: 3.0
+  num_samples: 81
+  max_joint_waypoint_step: 0.75
+  max_cartesian_refinement_depth: 5
+  ik_max_iterations: 250
+  ik_position_tolerance: 0.0005
+  ik_orientation_tolerance: 0.005
+  ik_restarts: 2
   approach_height: 0.12
   gripper_open_position: 0.0
   gripper_closed_position: 0.015
@@ -36,8 +46,7 @@ joint_space_trajectory:
   duration: 5.0
   num_samples: 81
   approach_height: 0.12
-  # Optional TCP pose knots for each arm leg. Joint derivatives are inferred
-  # smoothly from the poses, with the motion leg endpoints held at rest.
+  # Optional TCP pose knots per leg. Add more in RViz from a pose marker menu.
   legs:
     initial_to_pick: []
     pick_to_place:

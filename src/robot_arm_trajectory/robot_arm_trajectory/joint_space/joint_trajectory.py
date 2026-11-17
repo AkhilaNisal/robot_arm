@@ -399,18 +399,15 @@ def _polynomial_derivative_extrema(interpolator, derivative):
 
 def _estimate_derivative_extrema(interpolator, profile, derivative, sampled,
                                  parameterizer=None):
-    """Estimate time-derivative extrema by bounded scalar optimization.
+    """Estimate time-derivative extrema by refining sampled local peaks.
 
     Profile derivatives and polynomial interpolation derivatives are
-    analytical. The scalar time composition is not generally polynomial
-    across segment crossings, so each joint/sample interval is optimized
-    numerically with endpoints included. This is conservative in coverage,
-    though unlike polynomial root isolation it is not a formal certificate.
+    analytical. The grid contains profile samples and times at which the path
+    crosses interpolation knots. Bounded optimization refines local peaks
+    within that grid; this is an estimate, not a formal root-isolation proof.
     """
-    time = np.unique(np.concatenate((
-        profile.time,
-        np.linspace(profile.time[0], profile.time[-1], max(1001, len(profile.time))),
-    )))
+    knot_times = np.interp(interpolator.s, profile.s, profile.time)
+    time = np.unique(np.concatenate((profile.time, knot_times)))
 
     duration = float(profile.time[-1])
 
@@ -442,26 +439,33 @@ def _estimate_derivative_extrema(interpolator, profile, derivative, sampled,
         q1 = np.asarray(interpolator.evaluate(s, 1))
         q2 = np.asarray(interpolator.evaluate(s, 2))
         q3 = np.asarray(interpolator.evaluate(s, 3))
+        sd = np.asarray(sd)[..., None]
+        sdd = np.asarray(sdd)[..., None]
+        sj = np.asarray(sj)[..., None]
         if derivative == 1:
             return q1 * sd
         if derivative == 2:
             return q2 * sd**2 + q1 * sdd
         return q3 * sd**3 + 3.0 * q2 * sd * sdd + q1 * sj
 
-    maxima = np.max(np.abs(sampled), axis=0)
-    for left, right in zip(time[:-1], time[1:]):
-        # Include optimizer probes around the interval; this is substantially
-        # safer than checking only caller-selected output samples.
-        for joint in range(sampled.shape[1]):
+    grid_values = np.abs(evaluate(time))
+    maxima = np.max(grid_values, axis=0)
+    # Refine only sampled local peaks. The dense trajectory grid and exact
+    # spline-knot times bracket each peak; optimizing every joint on every
+    # interval needlessly repeated thousands of scalar searches.
+    for joint in range(sampled.shape[1]):
+        local_peaks = np.flatnonzero(
+            (grid_values[1:-1, joint] >= grid_values[:-2, joint])
+            & (grid_values[1:-1, joint] >= grid_values[2:, joint])
+        ) + 1
+        for index in local_peaks:
+            left, right = time[index - 1], time[index + 1]
             result = minimize_scalar(
                 lambda t: -abs(evaluate(t)[joint]),
-                bounds=(left, right), method="bounded",
-                options={"xatol": 1e-12},
+                bounds=(left, right), method='bounded',
+                options={'xatol': 1e-12},
             )
-            maxima[joint] = max(
-                maxima[joint], abs(evaluate(left)[joint]),
-                abs(evaluate(right)[joint]), -result.fun
-            )
+            maxima[joint] = max(maxima[joint], -result.fun)
     return maxima
 
 

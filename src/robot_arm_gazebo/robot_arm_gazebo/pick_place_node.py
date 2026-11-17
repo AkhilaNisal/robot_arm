@@ -46,6 +46,7 @@ class PickPlaceNode(Node):
     """RViz pose selection and validated Gazebo trajectory execution."""
 
     POSES = ('initial', 'pick', 'place')
+    SUPPORTS_WAYPOINTS = False
 
     def __init__(self):
         super().__init__('gp8_pick_place')
@@ -159,9 +160,12 @@ class PickPlaceNode(Node):
             'max_refinement_depth': int(self.options.get(
                 'max_cartesian_refinement_depth', 8
             )),
+            'ik_restarts': int(self.options.get('ik_restarts', 6)),
             'enforce_position_limits': True,
             'enforce_velocity_limits': True,
         }
+        self.path_method = str(self.planner_options['path_method'])
+        self.selected_path_method = self.path_method
         self.approach_height = float(self.options.get('approach_height', 0.10))
         self.cube_size = float(self.options.get('cube_size', 0.05))
         self.grasp_offset = np.asarray(
@@ -262,16 +266,48 @@ class PickPlaceNode(Node):
         }
         if name not in solvers:
             raise ValueError(f'Unknown IK solver {name!r}.')
-        return solvers[name](self.robot)
+        return solvers[name](
+            self.robot,
+            position_tolerance=float(
+                self.options.get('ik_position_tolerance', 1e-4)
+            ),
+            orientation_tolerance=float(
+                self.options.get('ik_orientation_tolerance', 1e-3)
+            ),
+            max_iterations=int(self.options.get('ik_max_iterations', 1000)),
+        )
 
     def _setup_markers(self):
         self.menu = MenuHandler()
         self.execute_menu_id = self.menu.insert(
             'Plan and Execute Pick & Place', callback=self._menu_cb
         )
+        self.method_menu_ids = {
+            'cartesian_linear': self.menu.insert(
+                'Plan and Execute: Cartesian Line', callback=self._menu_cb
+            ),
+            'cartesian_arc': self.menu.insert(
+                'Plan and Execute: Cartesian Arc', callback=self._menu_cb
+            ),
+            'joint_space': self.menu.insert(
+                'Plan and Execute: Joint Space', callback=self._menu_cb
+            ),
+        }
+        if self.SUPPORTS_WAYPOINTS:
+            self.method_menu_ids['joint_space_waypoints'] = self.menu.insert(
+                'Plan and Execute: Joint-Space Waypoints',
+                callback=self._menu_cb,
+            )
         self.reset_menu_id = self.menu.insert(
             'Reset All Poses', callback=self._menu_cb
         )
+        self.add_waypoint_menu_ids = {}
+        if self.SUPPORTS_WAYPOINTS:
+            for name in self.POSES:
+                self.add_waypoint_menu_ids[name] = self.menu.insert(
+                    f'Add Waypoint on {name.replace("_", " ")} Leg',
+                    callback=self._menu_cb,
+                )
         for name, color in (
             ('initial', (0.15, 0.5, 1.0, 1.0)),
             ('pick', (0.2, 1.0, 0.3, 1.0)),
@@ -450,8 +486,36 @@ class PickPlaceNode(Node):
                 self.poses[name] = self.pose_defaults[name].copy()
                 self.pose_server.setPose(name, matrix_to_pose_message(self.poses[name]))
             self.pose_server.applyChanges()
+            reset_waypoints = getattr(self, '_reset_waypoint_markers', None)
+            if reset_waypoints is not None:
+                reset_waypoints()
+        elif feedback.menu_entry_id in self.method_menu_ids.values():
+            self.selected_path_method = next(
+                method for method, entry_id in self.method_menu_ids.items()
+                if entry_id == feedback.menu_entry_id
+            )
+            if self.selected_path_method != 'joint_space_waypoints':
+                self.path_method = self.selected_path_method
+                self.planner_options['path_method'] = self.selected_path_method
+            self._begin_sequence()
+        elif feedback.menu_entry_id in self.add_waypoint_menu_ids.values():
+            marker_name = next(
+                name for name, entry_id in self.add_waypoint_menu_ids.items()
+                if entry_id == feedback.menu_entry_id
+            )
+            leg = {
+                'initial': 'initial_to_pick',
+                'pick': 'pick_to_place',
+                'place': 'place_to_initial',
+            }[marker_name]
+            self._add_waypoint_marker(
+                leg, self.poses[feedback.marker_name]
+            )
         else:
             self._begin_sequence()
+
+    def _add_waypoint_marker(self, leg, pose):
+        raise RuntimeError('This planner does not support waypoint markers.')
 
     def _trigger_sequence(self, request, response):
         del request

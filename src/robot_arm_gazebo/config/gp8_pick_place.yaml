@@ -15,7 +15,7 @@ pick_place:
   pose_input_mode: rviz
   path_method: joint_space
   cartesian_arc_height: 0.08
-  num_cartesian_waypoints: 20
+  num_cartesian_waypoints: 16
   duration: 3.0
   num_samples: 91
   interpolation_method: cubic_spline
@@ -24,8 +24,12 @@ pick_place:
   time_parameterization_method: quintic_scaling
   time_parameterization_options: {}
   ik_solver: damped_least_squares
-  max_joint_waypoint_step: 0.5
-  max_cartesian_refinement_depth: 8
+  max_joint_waypoint_step: 0.75
+  max_cartesian_refinement_depth: 5
+  ik_max_iterations: 250
+  ik_position_tolerance: 0.0005
+  ik_orientation_tolerance: 0.005
+  ik_restarts: 2
   approach_height: 0.10
   gripper_open_position: 0.0
   gripper_closed_position: 0.015

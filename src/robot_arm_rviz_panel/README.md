@@ -1,13 +1,15 @@
 # GP8 pick and place progress panel
 
-This package builds an RViz panel plugin that shows the current GP8 Gazebo
-pick-and-place planning percentage and status. It is loaded by
-`robot_arm_gazebo/rviz/gp8_pick_place.rviz` and is a runtime dependency of the
-Gazebo package.
+`robot_arm_rviz_panel` is a C++/Qt RViz plugin that subscribes to the Gazebo
+pick/place planner's progress string and displays a percentage bar with a
+status message. It is loaded by
+`robot_arm_gazebo/rviz/gp8_pick_place.rviz`; it has no standalone ROS node or
+launch file.
 
-## Build and load
+## Build and use
 
-Build the Gazebo package and its dependencies from the workspace root:
+Build this package with the Gazebo package so plugin dependencies and
+install-time plugin discovery are configured together:
 
 ```bash
 cd ~/robot_arm
@@ -17,11 +19,11 @@ source install/setup.bash
 ros2 launch robot_arm_gazebo gp8_pick_place.launch.py
 ```
 
-The RViz layout adds the panel named **Pick and Place Progress**. Close old
-RViz instances before rebuilding or after a plugin load error: a running RViz
-process keeps the previously loaded shared library in memory.
+The RViz panel is titled **Pick and Place Progress**. After a plugin rebuild,
+close existing RViz processes and start a fresh launch so RViz loads the new
+shared library.
 
-## Progress topic format
+## Topic contract
 
 The panel subscribes to:
 
@@ -29,7 +31,7 @@ The panel subscribes to:
 /gp8_pick_place/planning_progress  std_msgs/msg/String
 ```
 
-Messages use `integer_percentage|status text`, for example:
+Messages are formatted as `integer_percentage|status text`:
 
 ```text
 37|Planning segment 4 of 8
@@ -37,18 +39,19 @@ Messages use `integer_percentage|status text`, for example:
 100|Plan ready; executing
 ```
 
-The pick/place planner reports progress when it begins a segment, when that
-segment passes planning and validation, when the complete plan is ready, and
-when execution finishes. An error is shown in the status text and resets the
-bar to zero. The percentage updates per segment rather than continuously
-within one IK/planning call; a long segment may therefore leave the displayed
-value unchanged for several seconds.
+Percentage is expected from 0 through 100. The planner publishes updates at
+segment planning/validation boundaries, when the whole plan is ready, and
+when execution completes. A long IK/planning call can leave the current
+percentage visible until that call returns. Failures are reported in the
+status text and reset progress.
 
-Check the topic from a sourced workspace while the Gazebo launch is running:
+Inspect messages while a pick/place launch is running:
 
 ```bash
 ros2 topic echo /gp8_pick_place/planning_progress
 ```
 
-The custom class ID in the RViz plugin description is
-`robot_arm_rviz_panel/PlanningProgressPanel`.
+The plugin class ID is `robot_arm_rviz_panel/PlanningProgressPanel`, declared
+in `plugin_description.xml`. The implementation is in
+`src/planning_progress_panel.cpp` with its Qt/RViz interface in
+`include/robot_arm_rviz_panel/planning_progress_panel.hpp`.

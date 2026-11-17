@@ -11,7 +11,7 @@ from ..cartesian_space.cartesian_ik import (
 
 
 def plan_joint_space(robot_model, ik_solver, q_initial, goal_pose,
-                     num_waypoints):
+                     num_waypoints, ik_restarts=6):
     """Solve endpoint IK and interpolate joint waypoints to that solution.
 
     Returns the IK result and FK poses for those joint-space waypoints. The
@@ -19,7 +19,9 @@ def plan_joint_space(robot_model, ik_solver, q_initial, goal_pose,
     space.
     """
     start = np.asarray(q_initial, dtype=float)
-    endpoint = solve_ik_with_restarts(ik_solver, goal_pose, start)
+    endpoint = solve_ik_with_restarts(
+        ik_solver, goal_pose, start, num_restarts=ik_restarts
+    )
     if not endpoint.success:
         return None, None, endpoint.message
 

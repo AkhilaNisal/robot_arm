@@ -12,16 +12,20 @@ poses:
 trajectory:
   path_method: cartesian_linear
   cartesian_arc_height: 0.08
-  num_cartesian_waypoints: 30
+  num_cartesian_waypoints: 16
   duration: 4.0
-  num_samples: 121
+  num_samples: 81
   interpolation_method: cubic_spline
   interpolation_options:
     bc_type: not-a-knot
   time_parameterization_method: quintic_scaling
   time_parameterization_options: {}
   ik_solver: damped_least_squares
-  max_joint_waypoint_step: 0.5
-  max_cartesian_refinement_depth: 8
-  cartesian_position_tolerance: 0.002
-  cartesian_orientation_tolerance: 0.02
+  max_joint_waypoint_step: 0.75
+  max_cartesian_refinement_depth: 5
+  cartesian_position_tolerance: 0.003
+  cartesian_orientation_tolerance: 0.03
+  ik_max_iterations: 250
+  ik_position_tolerance: 0.0005
+  ik_orientation_tolerance: 0.005
+  ik_restarts: 2

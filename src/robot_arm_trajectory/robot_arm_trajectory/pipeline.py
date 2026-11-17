@@ -59,6 +59,7 @@ def generate_cartesian_joint_trajectory(
     path_method='cartesian_linear',
     cartesian_arc_height=0.1,
     max_refinement_depth=8,
+    ik_restarts=6,
 ):
     """
     Generate a time-parameterized joint trajectory for a Cartesian goal.
@@ -103,7 +104,8 @@ def generate_cartesian_joint_trajectory(
         )
     elif path_method == 'joint_space':
         ik_result, cartesian_path, joint_space_error = plan_joint_space(
-            robot_model, ik_solver, q, target, num_waypoints
+            robot_model, ik_solver, q, target, num_waypoints,
+            ik_restarts=ik_restarts,
         )
         if joint_space_error is not None:
             return CartesianJointTrajectoryResult(

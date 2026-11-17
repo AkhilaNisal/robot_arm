@@ -29,6 +29,7 @@ from robot_arm_trajectory.interactive_poses import (
     InteractivePoseControls,
     load_preview_config,
     plan_selected_poses,
+    pose_message_to_matrix,
 )
 from robot_arm_trajectory.preview_utils import (
     build_playback_samples,
@@ -41,6 +42,14 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from visualization_msgs.msg import Marker
+from visualization_msgs.msg import InteractiveMarker, InteractiveMarkerControl
+from interactive_markers import MenuHandler
+from robot_arm_trajectory.joint_space.joint_trajectory import (
+    generate_joint_trajectory,
+)
+from robot_arm_trajectory.cartesian_space.cartesian_ik import (
+    solve_ik_with_restarts,
+)
 
 
 class TrajectoryPreviewNode(Node):
@@ -79,14 +88,26 @@ class TrajectoryPreviewNode(Node):
         ).lower()
         if self.pose_input_mode not in ('rviz', 'yaml'):
             raise ValueError('pose_input_mode must be either rviz or yaml.')
-        self.pose_configuration = load_preview_config(
-            self.get_parameter('pose_config').value
-        )
+        self.pose_configuration = None
+        self.waypoint_configuration = None
+        if self.pose_input_mode == 'yaml':
+            self.waypoint_configuration = self._read_waypoint_config(
+                self.get_parameter('pose_config').value
+            )
+            if self.waypoint_configuration is None:
+                self.pose_configuration = load_preview_config(
+                    self.get_parameter('pose_config').value
+                )
         planner_config = (
             self.pose_configuration[2]
             if self.pose_configuration is not None
-            else {}
+            else (
+                self.waypoint_configuration.get('trajectory', {})
+                if self.waypoint_configuration is not None else {}
+            )
         )
+        if not isinstance(planner_config, dict):
+            raise ValueError('Preview YAML trajectory section must be a mapping.')
         self.robot = RobotModel(
             self.get_parameter('robot_config').get_parameter_value().string_value
         )
@@ -148,9 +169,25 @@ class TrajectoryPreviewNode(Node):
         self.declare_parameter(
             'ik_solver', planner_config.get('ik_solver', 'damped_least_squares')
         )
+        self.declare_parameter(
+            'ik_max_iterations', planner_config.get('ik_max_iterations', 1000)
+        )
+        self.declare_parameter(
+            'ik_position_tolerance',
+            planner_config.get('ik_position_tolerance', 1e-4),
+        )
+        self.declare_parameter(
+            'ik_orientation_tolerance',
+            planner_config.get('ik_orientation_tolerance', 1e-3),
+        )
+        self.declare_parameter(
+            'ik_restarts', planner_config.get('ik_restarts', 6)
+        )
         self.declare_parameter('preview_rate', 30.0)
         self.declare_parameter('marker_publish_rate', 1.0)
         self.declare_parameter('looping', False)
+        self.declare_parameter('waypoint_duration', planner_config.get('duration', 4.0))
+        self.declare_parameter('waypoint_samples', planner_config.get('num_samples', 121))
         self.declare_parameter('gripper_open_position', 0.0)
         self.declare_parameter('gripper_closed_position', 0.015)
         self.declare_parameter('workspace_samples', 3000)
@@ -185,6 +222,12 @@ class TrajectoryPreviewNode(Node):
             'marker_publish_rate',
         )
         self.looping = bool(self.get_parameter('looping').value)
+        self.waypoint_duration = float(self.get_parameter('waypoint_duration').value)
+        self.waypoint_samples = int(self.get_parameter('waypoint_samples').value)
+        if not math.isfinite(self.waypoint_duration) or self.waypoint_duration <= 0:
+            raise ValueError('waypoint_duration must be positive and finite.')
+        if self.waypoint_samples < 2:
+            raise ValueError('waypoint_samples must be at least 2.')
         self.startup_delay = float(self.get_parameter('startup_delay').value)
         if not math.isfinite(self.startup_delay) or self.startup_delay < 0:
             raise ValueError('startup_delay must be finite and nonnegative.')
@@ -206,9 +249,19 @@ class TrajectoryPreviewNode(Node):
         )
 
         if self.pose_input_mode == 'yaml':
-            self.default_start_pose, self.default_goal_pose = (
-                self.pose_configuration[:2]
-            )
+            if self.waypoint_configuration is not None:
+                waypoint_poses = self.waypoint_configuration['poses']
+                self.default_start_pose = self._pose_yaml_to_matrix(
+                    waypoint_poses['initial'], 'poses.initial'
+                )
+                goal_name = 'goal' if 'goal' in waypoint_poses else 'place'
+                self.default_goal_pose = self._pose_yaml_to_matrix(
+                    waypoint_poses[goal_name], f'poses.{goal_name}'
+                )
+            else:
+                self.default_start_pose, self.default_goal_pose = (
+                    self.pose_configuration[:2]
+                )
         else:
             goal_position = np.asarray(
                 self.get_parameter('goal_position').value, dtype=float
@@ -249,7 +302,31 @@ class TrajectoryPreviewNode(Node):
                 'ik_solver must be damped_least_squares, '
                 'jacobian_transpose, or pseudoinverse.'
             )
-        self.solver = solver_types[solver_name](self.robot)
+        self.ik_max_iterations = int(
+            self.get_parameter('ik_max_iterations').value
+        )
+        self.ik_position_tolerance = float(
+            self.get_parameter('ik_position_tolerance').value
+        )
+        self.ik_orientation_tolerance = float(
+            self.get_parameter('ik_orientation_tolerance').value
+        )
+        self.ik_restarts = int(self.get_parameter('ik_restarts').value)
+        if self.ik_max_iterations < 1 or self.ik_restarts < 0:
+            raise ValueError('IK iteration and restart counts are invalid.')
+        if (
+            not math.isfinite(self.ik_position_tolerance)
+            or self.ik_position_tolerance <= 0
+            or not math.isfinite(self.ik_orientation_tolerance)
+            or self.ik_orientation_tolerance <= 0
+        ):
+            raise ValueError('IK tolerances must be positive and finite.')
+        self.solver = solver_types[solver_name](
+            self.robot,
+            position_tolerance=self.ik_position_tolerance,
+            orientation_tolerance=self.ik_orientation_tolerance,
+            max_iterations=self.ik_max_iterations,
+        )
 
         self.reference_publisher = self.create_publisher(
             Marker,
@@ -290,7 +367,10 @@ class TrajectoryPreviewNode(Node):
             self.default_goal_pose,
             self._pose_changed,
             self._menu_action,
-            editable=self.pose_input_mode == 'rviz',
+            editable=(
+                self.pose_input_mode == 'rviz'
+                or self.waypoint_configuration is not None
+            ),
             gripper_callback=(
                 self._set_gripper
                 if self.robot.name.lower() == 'gp8'
@@ -298,6 +378,10 @@ class TrajectoryPreviewNode(Node):
             ),
             workspace_callback=self._workspace_action,
         )
+        self.waypoint_markers = []
+        self._next_waypoint_id = 1
+        if self.pose_input_mode == 'yaml' and self.waypoint_configuration:
+            self._load_waypoint_pose_configuration()
         self.get_logger().info(
             f'Pose input mode: {self.pose_input_mode}. '
             'Waiting for Start Pose and Goal Pose. '
@@ -362,6 +446,8 @@ class TrajectoryPreviewNode(Node):
         }
         if action in path_methods:
             self._plan_and_preview(path_methods[action])
+        elif action == 'plan_waypoints':
+            self._plan_joint_space_waypoints()
         elif action == 'reset_start':
             self.pose_controls.set_pose(
                 self.pose_controls.START, self.default_start_pose
@@ -371,12 +457,236 @@ class TrajectoryPreviewNode(Node):
                 self.pose_controls.GOAL, self.default_goal_pose
             )
         elif action == 'reset_both':
-            self.pose_controls.set_pose(
-                self.pose_controls.START, self.default_start_pose
+            self.pose_controls.set_pose(self.pose_controls.START, self.default_start_pose)
+            self.pose_controls.set_pose(self.pose_controls.GOAL, self.default_goal_pose)
+
+    def _load_waypoint_pose_configuration(self):
+        """Load one initial pose, ordered waypoint list, and goal pose."""
+        data = self.waypoint_configuration
+        poses = data['poses']
+        config = data['joint_space_trajectory']
+        initial = self._pose_yaml_to_matrix(poses['initial'], 'poses.initial')
+        goal_name = 'goal' if 'goal' in poses else 'place'
+        goal = self._pose_yaml_to_matrix(
+            poses[goal_name], f'poses.{goal_name}'
+        )
+        self.pose_controls.set_pose(self.pose_controls.START, initial)
+        self.pose_controls.set_pose(self.pose_controls.GOAL, goal)
+        self.waypoint_duration = float(config.get('duration', self.waypoint_duration))
+        self.waypoint_samples = int(config.get('num_samples', self.waypoint_samples))
+        entries = config.get('waypoints', [])
+        if not isinstance(entries, list):
+            raise ValueError('joint_space_trajectory.waypoints must be a list.')
+        self.waypoint_markers.clear()
+        for index, entry in enumerate(entries):
+            pose = self._pose_yaml_to_matrix(
+                entry, f'joint_space_trajectory.waypoints[{index}]'
             )
-            self.pose_controls.set_pose(
-                self.pose_controls.GOAL, self.default_goal_pose
+            self._insert_waypoint_marker('route', pose)
+
+    @staticmethod
+    def _read_waypoint_config(path):
+        """Return explicit joint-space waypoint YAML, or None for pose YAML."""
+        from pathlib import Path
+        import yaml
+
+        try:
+            data = yaml.safe_load(Path(path).read_text())
+        except (OSError, yaml.YAMLError) as error:
+            raise ValueError(f'Cannot load preview YAML {path}: {error}') from error
+        if not isinstance(data, dict):
+            raise ValueError('Preview YAML must contain a top-level mapping.')
+        if 'joint_space_trajectory' not in data:
+            return None
+        poses = data.get('poses')
+        trajectory = data.get('joint_space_trajectory')
+        if not isinstance(poses, dict) or not isinstance(trajectory, dict):
+            raise ValueError(
+                'Waypoint YAML requires poses and joint_space_trajectory mappings.'
             )
+        if 'initial' not in poses or not (
+            'goal' in poses or 'place' in poses
+        ):
+            raise ValueError(
+                'Waypoint YAML poses must contain initial and goal '
+                '(or legacy place).'
+            )
+        waypoints = trajectory.get('waypoints', [])
+        if not isinstance(waypoints, list):
+            raise ValueError('joint_space_trajectory.waypoints must be a list.')
+        return data
+
+    @staticmethod
+    def _pose_yaml_to_matrix(value, name):
+        if not isinstance(value, dict):
+            raise ValueError(f'{name} must be a mapping with position and orientation_xyzw.')
+        position = np.asarray(value.get('position'), dtype=float)
+        quaternion = np.asarray(value.get('orientation_xyzw'), dtype=float)
+        if (position.shape != (3,) or quaternion.shape != (4,)
+                or not np.all(np.isfinite(position)) or not np.all(np.isfinite(quaternion))
+                or np.linalg.norm(quaternion) <= np.finfo(float).eps):
+            raise ValueError(f'{name} must contain finite xyz and a nonzero xyzw quaternion.')
+        result = np.eye(4)
+        result[:3, 3] = position
+        result[:3, :3] = quaternion_to_rotation(quaternion / np.linalg.norm(quaternion))
+        return result
+
+    def _waypoint_menu_action(self, command, marker_name):
+        if command == 'add_waypoint':
+            self._insert_waypoint_marker(
+                'route', self.pose_controls.get_pose_matrix(
+                    self.pose_controls.GOAL
+                )
+            )
+        elif command == 'remove_waypoint' and self.waypoint_markers:
+            name, _, _ = self.waypoint_markers.pop()
+            self.waypoint_server.erase(name)
+            self.waypoint_server.applyChanges()
+            self._pose_changed(name, None)
+
+    def _insert_waypoint_marker(self, leg, pose):
+        from interactive_markers import InteractiveMarkerServer
+        if not hasattr(self, 'waypoint_server'):
+            self.waypoint_server = InteractiveMarkerServer(self, '/trajectory_preview/waypoints')
+        name = f'waypoint_{self._next_waypoint_id}'
+        self._next_waypoint_id += 1
+        marker = InteractiveMarker()
+        marker.header.frame_id = 'base_link'
+        marker.name = name
+        marker.description = f'Waypoint {name.removeprefix("waypoint_")} ({leg})'
+        marker.scale = 0.20
+        marker.pose = self._matrix_pose(pose)
+        visual = InteractiveMarkerControl()
+        visual.always_visible = True
+        sphere = Marker()
+        sphere.type = Marker.SPHERE
+        sphere.pose.orientation.w = 1.0
+        sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.055
+        sphere.color.r, sphere.color.g, sphere.color.b, sphere.color.a = (0.9, 0.75, 0.1, 1.0)
+        visual.markers.append(sphere)
+        marker.controls.append(visual)
+        root_half = 2.0 ** -0.5
+        for axis, quaternion in (
+            ('x', (root_half, 0.0, 0.0, root_half)),
+            ('y', (0.0, root_half, 0.0, root_half)),
+            ('z', (0.0, 0.0, root_half, root_half)),
+        ):
+            for mode, suffix in ((InteractiveMarkerControl.MOVE_AXIS, 'move'), (InteractiveMarkerControl.ROTATE_AXIS, 'rotate')):
+                control = InteractiveMarkerControl()
+                control.name = f'{axis}_{suffix}'
+                (
+                    control.orientation.x,
+                    control.orientation.y,
+                    control.orientation.z,
+                    control.orientation.w,
+                ) = map(float, quaternion)
+                control.interaction_mode = mode
+                marker.controls.append(control)
+        self.waypoint_server.insert(marker, feedback_callback=self._waypoint_feedback)
+        menu = MenuHandler()
+        menu.insert('Remove This Waypoint', callback=lambda feedback: self._remove_waypoint(feedback.marker_name))
+        menu.apply(self.waypoint_server, name)
+        self.waypoint_server.applyChanges()
+        self.waypoint_markers.append([name, leg, np.asarray(pose, dtype=float).copy()])
+
+    def _remove_waypoint(self, marker_name):
+        for index, item in enumerate(self.waypoint_markers):
+            if item[0] == marker_name:
+                self.waypoint_markers.pop(index)
+                self.waypoint_server.erase(marker_name)
+                self.waypoint_server.applyChanges()
+                self._pose_changed(marker_name, None)
+                return
+
+    @staticmethod
+    def _matrix_pose(transform):
+        from .interactive_poses import matrix_to_pose_message
+        return matrix_to_pose_message(transform)
+
+    def _waypoint_feedback(self, feedback):
+        if feedback.event_type == feedback.POSE_UPDATE:
+            for item in self.waypoint_markers:
+                if item[0] == feedback.marker_name:
+                    item[2] = pose_message_to_matrix(feedback.pose)
+                    break
+            self._pose_changed(feedback.marker_name, feedback.pose)
+
+    def _plan_joint_space_waypoints(self):
+        """Plan the ordered initial-waypoints-goal route in joint space."""
+        if self._planning:
+            self.get_logger().warning('A planning request is already active.')
+            return
+        self._planning = True
+        self.state = self.PLANNING
+        self._cancel_timer('playback_timer')
+        self._cancel_timer('marker_timer')
+        self.preview_data = None
+        try:
+            start = self.pose_controls.get_pose_matrix(self.pose_controls.START)
+            goal = self.pose_controls.get_pose_matrix(self.pose_controls.GOAL)
+            route_poses = (
+                [start]
+                + [item[2] for item in self.waypoint_markers]
+                + [goal]
+            )
+            q_waypoints = []
+            seed = self.q_initial.copy()
+            for index, pose in enumerate(route_poses):
+                result = solve_ik_with_restarts(
+                    self.solver, pose, seed,
+                    num_restarts=self.ik_restarts,
+                )
+                if not result.success:
+                    raise RuntimeError(
+                        f'Waypoint {index} IK failed: {result.message}'
+                    )
+                seed = np.asarray(result.joint_positions, dtype=float)
+                if not self.robot.check_joint_limits(seed):
+                    raise RuntimeError(
+                        f'Waypoint {index} IK is outside joint limits.'
+                    )
+                q_waypoints.append(seed.copy())
+            trajectory = generate_joint_trajectory(
+                q_waypoints, duration=self.waypoint_duration,
+                num_samples=self.waypoint_samples,
+                interpolation_method='quintic_polynomial',
+                waypoint_times=np.linspace(
+                    0.0, self.waypoint_duration, len(q_waypoints)
+                ),
+                robot_model=self.robot, enforce_position_limits=True,
+                enforce_velocity_limits=True,
+            )
+            data = prepare_preview_data(
+                trajectory, self.robot, route_poses,
+                validate_cartesian_tracking=False,
+            )
+            if not data.validation.success:
+                raise RuntimeError('; '.join(data.validation.errors))
+            self._publish_trajectory_plot_data(trajectory)
+            # For a joint-space route the commanded Cartesian reference is its
+            # FK path, including the curvature between pose waypoints.
+            data.reference_points = list(data.actual_points)
+            self.preview_data = data
+            self._delete_path_markers()
+            self.q_start = q_waypoints[0].copy()
+            self.samples = build_playback_samples(data.joint_samples, self.looping)
+            self.index = 0
+            self.playback_start_ros = None
+            self.startup_start_ros = self.get_clock().now()
+            self._publish_joint_positions(self.q_start, self.get_clock().now())
+            self._publish_markers()
+            self.marker_timer = self.create_timer(1.0 / self.marker_publish_rate, self._publish_markers)
+            self.playback_timer = self.create_timer(1.0 / self.preview_rate, self._playback_tick)
+            self.state = self.READY
+            self.get_logger().info(
+                'Joint-space waypoint trajectory ready with '
+                f'{len(route_poses)} poses and {len(self.samples)} samples.'
+            )
+        except (ValueError, RuntimeError, np.linalg.LinAlgError) as error:
+            self.state = self.FAILED
+            self.get_logger().error(f'Waypoint planning failed: {error}')
+        finally:
+            self._planning = False
 
     def _cancel_timer(self, name):
         """Cancel and clear one existing timer without touching other timers."""
@@ -422,6 +732,7 @@ class TrajectoryPreviewNode(Node):
             planned = plan_selected_poses(
                 self.robot, self.solver, self.q_initial, start_pose, goal_pose,
                 self._pipeline_options(path_method),
+                num_ik_restarts=self.ik_restarts,
             )
             if not planned.success:
                 self.state = self.FAILED
@@ -521,6 +832,7 @@ class TrajectoryPreviewNode(Node):
             'max_refinement_depth': int(
                 self.get_parameter('max_cartesian_refinement_depth').value
             ),
+            'ik_restarts': self.ik_restarts,
             'enforce_position_limits': True,
             'enforce_velocity_limits': True,
         }
@@ -661,13 +973,13 @@ class TrajectoryPreviewNode(Node):
         if self.preview_data is None:
             return
         stamp = self.get_clock().now().to_msg()
-        self.reference_publisher.publish(self._line_marker(
-            'cartesian_reference', 0, stamp, self.preview_data.reference_points,
-            (0.1, 0.35, 1.0, 1.0),
-        ))
         self.actual_publisher.publish(self._line_marker(
             'cartesian_actual', 1, stamp, self.preview_data.actual_points,
             (0.1, 0.9, 0.2, 1.0),
+        ))
+        self.reference_publisher.publish(self._line_marker(
+            'cartesian_reference', 0, stamp, self.preview_data.reference_points,
+            (0.1, 0.35, 1.0, 1.0),
         ))
 
     @staticmethod

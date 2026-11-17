@@ -133,7 +133,9 @@ def solve_cartesian_path(
     )
 
 
-def solve_ik_with_restarts(ik_solver, target_pose, initial_configuration):
+def solve_ik_with_restarts(
+    ik_solver, target_pose, initial_configuration, num_restarts=6
+):
     """Retry a difficult IK target from deterministic alternate joint seeds."""
     robot = ik_solver.robot
     initial = robot.enforce_joint_limits(
@@ -141,9 +143,15 @@ def solve_ik_with_restarts(ik_solver, target_pose, initial_configuration):
     )
     rng = np.random.default_rng(2026)
     seeds = [initial, 0.5 * (robot.lower_limits + robot.upper_limits)]
+    if (
+        isinstance(num_restarts, (bool, np.bool_))
+        or not isinstance(num_restarts, (int, np.integer))
+        or num_restarts < 0
+    ):
+        raise ValueError('num_restarts must be a nonnegative integer.')
     seeds.extend(
         rng.uniform(robot.lower_limits, robot.upper_limits)
-        for _ in range(6)
+        for _ in range(int(num_restarts))
     )
     last_result = None
     for seed in seeds:
