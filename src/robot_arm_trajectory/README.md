@@ -131,6 +131,19 @@ ambiguous exactly at a knot; cubic spline is smoother. The seventh-order
 profile parameterizes normalized path only, so its jerk limit is a
 path-parameter jerk limit, not a per-joint jerk constraint.
 
+`generate_joint_trajectory()` also accepts `waypoint_velocities`,
+`waypoint_accelerations`, and optional `waypoint_times` for time-domain
+quintic Hermite trajectories. Derivative arrays have shape `(N, dof)` and use
+physical joint units (rad/s and rad/s²); absent arrays default to zero at each
+waypoint. When both arrays are omitted, internal values are inferred from a
+clamped cubic spline and the trajectory endpoints are held at rest. With
+position limits configured, inferred derivatives are reduced as needed to
+avoid polynomial overshoot. Knot times are seconds from zero through
+`duration`; when omitted, they are evenly spaced. This mode requires
+`interpolation_method='quintic_polynomial'` and does not apply a separate time
+parameterization profile. Position and derivative limits are checked across
+the polynomial segments.
+
 Run the package tests from a sourced ROS 2 workspace with:
 
 ```bash

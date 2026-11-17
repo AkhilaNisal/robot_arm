@@ -22,6 +22,7 @@ def generate_launch_description():
     cube_name = LaunchConfiguration('cube_name')
     gz_partition = LaunchConfiguration('gz_partition')
     plot_trajectory = LaunchConfiguration('plot_trajectory')
+    planner_executable = LaunchConfiguration('planner_executable')
     world_clock = ['/world/', world_name, '/clock']
     world_set_pose = ['/world/', world_name, '/set_pose']
     gz_args = ['-r -v 2 ', world]
@@ -111,7 +112,8 @@ def generate_launch_description():
         output='screen', condition=IfCondition(plot_trajectory),
     )
     planner = Node(
-        package='robot_arm_gazebo', executable='pick_place', output='screen',
+        package='robot_arm_gazebo', executable=planner_executable,
+        output='screen',
         parameters=[{
             'robot_config': PathJoinSubstitution([
                 kinematics, 'config', 'gp8.yaml'
@@ -146,6 +148,9 @@ def generate_launch_description():
         DeclareLaunchArgument('cube_name', default_value='gp8_demo_cube'),
         DeclareLaunchArgument('gz_partition', default_value='robot_arm_gp8_pick_place'),
         DeclareLaunchArgument('plot_trajectory', default_value='false'),
+        DeclareLaunchArgument(
+            'planner_executable', default_value='pick_place'
+        ),
         DeclareLaunchArgument('cube_initial_pose', default_value='0.62 0.0 0.625'),
         DeclareLaunchArgument('cube_size', default_value='0.045'),
         DeclareLaunchArgument('world', default_value=PathJoinSubstitution([

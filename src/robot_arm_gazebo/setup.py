@@ -13,10 +13,12 @@ setup(
         ('share/' + package_name + '/launch', [
             'launch/gp8_pick_place.launch.py',
             'launch/gp8_assignment_pick_place.launch.py',
+            'launch/gp8_assignment_waypoint_pick_place.launch.py',
         ]),
         ('share/' + package_name + '/config', [
             'config/controllers.yaml', 'config/gp8_pick_place.yaml',
             'config/gp8_assignment.yaml',
+            'config/gp8_assignment_waypoints.yaml',
         ]),
         ('share/' + package_name + '/worlds', [
             'worlds/pick_place.sdf', 'worlds/gp8_assignment.sdf',
@@ -32,5 +34,6 @@ setup(
     license='Apache-2.0',
     entry_points={'console_scripts': [
         'pick_place = robot_arm_gazebo.pick_place_node:main',
+        'waypoint_pick_place = robot_arm_gazebo.waypoint_pick_place_node:main',
     ]},
 )

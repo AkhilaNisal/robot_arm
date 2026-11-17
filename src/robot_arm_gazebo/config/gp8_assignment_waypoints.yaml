@@ -1,0 +1,48 @@
+# Assignment workcell with an explicit joint-space waypoint trajectory.
+# Pose positions are TCP xyz in metres; orientations are normalized ROS xyzw.
+objects:
+  box_a:
+    position: [0.62, 0.25, 0.10]
+    orientation_xyzw: [0.0, 0.0, 0.0, 1.0]
+    size: [0.30, 0.30, 0.20]
+  box_b:
+    position: [0.62, -0.25, 0.025]
+    orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+    size: [0.05, 0.05, 0.05]
+
+poses:
+  initial:
+    position: [0.62994895, -0.00392611, 0.81400220]
+    orientation_xyzw: [0.70704490, -0.00925572, 0.70704752, 0.00925391]
+  pick:
+    position: [0.62, -0.25, 0.025]
+    orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+  place:
+    position: [0.62, 0.25, 0.225]
+    orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+
+pick_place:
+  pose_input_mode: rviz
+  ik_solver: damped_least_squares
+  approach_height: 0.12
+  gripper_open_position: 0.0
+  gripper_closed_position: 0.015
+  cube_size: 0.05
+  cube_grasp_follow_rate: 100.0
+  grasp_offset: [0.0, 0.0, 0.0]
+  grasp_tolerance: 0.10
+
+joint_space_trajectory:
+  duration: 5.0
+  num_samples: 81
+  approach_height: 0.12
+  # Optional TCP pose knots for each arm leg. Joint derivatives are inferred
+  # smoothly from the poses, with the motion leg endpoints held at rest.
+  legs:
+    initial_to_pick: []
+    pick_to_place:
+      - position: [0.62, -0.12, 0.48]
+        orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+      - position: [0.62, 0.12, 0.48]
+        orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+    place_to_initial: []

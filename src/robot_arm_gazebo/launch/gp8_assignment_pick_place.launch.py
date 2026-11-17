@@ -82,6 +82,7 @@ def _launch_setup(context):
         launch_arguments={
             'pose_input_mode': LaunchConfiguration('pose_input_mode'),
             'plot_trajectory': LaunchConfiguration('plot_trajectory'),
+            'planner_executable': LaunchConfiguration('planner_executable'),
             'pose_config': LaunchConfiguration('pose_config'),
             'world': assignment_world,
             'world_name': 'gp8_assignment',
@@ -102,6 +103,9 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('pose_input_mode', default_value='config'),
         DeclareLaunchArgument('plot_trajectory', default_value='false'),
+        DeclareLaunchArgument(
+            'planner_executable', default_value='pick_place'
+        ),
         DeclareLaunchArgument('pose_config', default_value=default_config),
         SetEnvironmentVariable(
             name='GZ_PARTITION', value='robot_arm_gp8_assignment'

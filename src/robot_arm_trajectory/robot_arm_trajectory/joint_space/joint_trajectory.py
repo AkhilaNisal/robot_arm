@@ -28,7 +28,8 @@ def generate_joint_trajectory(
     joint_acceleration_limits=None, joint_jerk_limits=None,
     enforce_position_limits=False, enforce_velocity_limits=False,
     enforce_acceleration_limits=False, enforce_jerk_limits=False,
-    robot_model=None,
+    robot_model=None, waypoint_velocities=None,
+    waypoint_accelerations=None, waypoint_times=None,
 ):
     """Generate a joint trajectory using independent interpolation and timing.
 
@@ -38,6 +39,14 @@ def generate_joint_trajectory(
 
     Position-limit enforcement checks analytical interpolation extrema,
     including positions between generated trajectory samples.
+
+    Supplying waypoint derivatives or times selects time-domain quintic
+    Hermite interpolation. Derivatives are physical joint derivatives in
+    rad/s and rad/s^2. If derivatives are omitted, a clamped cubic spline
+    estimates smooth internal derivatives and holds zero velocity and
+    acceleration at the trajectory endpoints. Waypoint times are seconds from
+    trajectory start; when omitted, waypoints are spaced uniformly over
+    ``duration``. The selected time-parameterization profile is not applied.
     """
     q = np.asarray(joint_waypoints, dtype=float)
 
@@ -93,47 +102,101 @@ def generate_joint_trajectory(
         if limits is not None:
             _validate_magnitude_limits(name, limits, q.shape[1])
 
-    # Fit the selected interpolation method.
-    s_waypoints = np.linspace(0.0, 1.0, len(q))
-
-    interpolator = INTERPOLATORS[interpolation_method]().fit(
-        q,
-        s_waypoints,
-        **(interpolation_options or {})
+    direct_time_interpolation = (
+        waypoint_velocities is not None
+        or waypoint_accelerations is not None
+        or waypoint_times is not None
     )
-
-    # Generate the selected time parameterization profile.
-    profile = TIME_PARAMETERIZERS[time_parameterization]().generate(
-        duration=duration,
-        num_samples=num_samples,
-        **(time_parameterization_options or {})
-    )
-
-    s = profile.s
-
-    # Evaluate interpolation derivatives.
-    positions = interpolator.evaluate(s, 0)
-    dq = interpolator.evaluate(s, 1)
-    d2q = interpolator.evaluate(s, 2)
-    d3q = interpolator.evaluate(s, 3)
-
-    # Apply the chain rule to obtain time derivatives.
-    velocities = dq * profile.velocity[:, None]
-
-    accelerations = (
-        d2q * profile.velocity[:, None]**2
-        + dq * profile.acceleration[:, None]
-    )
-
-    jerks = None
-
-    if profile.jerk is not None:
-        jerks = (
-            d3q * profile.velocity[:, None]**3
-            + 3 * d2q * profile.velocity[:, None]
-            * profile.acceleration[:, None]
-            + dq * profile.jerk[:, None]
+    if direct_time_interpolation:
+        if interpolation_method != "quintic_polynomial":
+            raise ValueError(
+                "Waypoint times and derivatives require "
+                "quintic_polynomial interpolation."
+            )
+        knots = _validate_waypoint_times(waypoint_times, len(q), duration)
+        inferred_v, inferred_a = _infer_waypoint_derivatives(q, knots)
+        derivatives_v = (
+            inferred_v if waypoint_velocities is None
+            else _validate_waypoint_derivatives(
+                "velocity", waypoint_velocities, q
+            )
         )
+        derivatives_a = (
+            inferred_a if waypoint_accelerations is None
+            else _validate_waypoint_derivatives(
+                "acceleration", waypoint_accelerations, q
+            )
+        )
+        auto_derivatives = (
+            waypoint_velocities is None
+            and waypoint_accelerations is None
+        )
+        interpolator = None
+        if auto_derivatives and joint_position_limits is not None:
+            lower, upper = _validate_position_limits(
+                joint_position_limits, q.shape[1]
+            )
+            scales = [0.5**power for power in range(11)] + [0.0]
+            for scale in scales:
+                candidate = INTERPOLATORS[interpolation_method]().fit(
+                    q,
+                    knots,
+                    velocities=derivatives_v * scale,
+                    accelerations=derivatives_a * scale,
+                    **(interpolation_options or {})
+                )
+                minimum, maximum = candidate.position_extrema()
+                if (
+                    np.all(minimum >= lower - 1e-10)
+                    and np.all(maximum <= upper + 1e-10)
+                ):
+                    interpolator = candidate
+                    break
+            if interpolator is None:
+                interpolator = candidate
+        else:
+            interpolator = INTERPOLATORS[interpolation_method]().fit(
+                q,
+                knots,
+                velocities=derivatives_v,
+                accelerations=derivatives_a,
+                **(interpolation_options or {})
+            )
+        time = np.linspace(0.0, float(duration), int(num_samples))
+        positions = interpolator.evaluate(time, 0)
+        velocities = interpolator.evaluate(time, 1)
+        accelerations = interpolator.evaluate(time, 2)
+        jerks = interpolator.evaluate(time, 3)
+        profile = None
+    else:
+        s_waypoints = np.linspace(0.0, 1.0, len(q))
+        interpolator = INTERPOLATORS[interpolation_method]().fit(
+            q, s_waypoints, **(interpolation_options or {})
+        )
+        profile = TIME_PARAMETERIZERS[time_parameterization]().generate(
+            duration=duration,
+            num_samples=num_samples,
+            **(time_parameterization_options or {})
+        )
+        time = profile.time
+        s = profile.s
+        positions = interpolator.evaluate(s, 0)
+        dq = interpolator.evaluate(s, 1)
+        d2q = interpolator.evaluate(s, 2)
+        d3q = interpolator.evaluate(s, 3)
+        velocities = dq * profile.velocity[:, None]
+        accelerations = (
+            d2q * profile.velocity[:, None]**2
+            + dq * profile.acceleration[:, None]
+        )
+        jerks = None
+        if profile.jerk is not None:
+            jerks = (
+                d3q * profile.velocity[:, None]**3
+                + 3 * d2q * profile.velocity[:, None]
+                * profile.acceleration[:, None]
+                + dq * profile.jerk[:, None]
+            )
 
     # ---------------------------------------------------------
     # Position-limit enforcement
@@ -203,12 +266,68 @@ def generate_joint_trajectory(
     )
 
     return JointTrajectory(
-        profile.time,
+        time,
         positions,
         velocities,
         accelerations,
         jerks
     )
+
+
+def _validate_waypoint_derivatives(name, values, waypoints):
+    """Validate finite physical joint derivatives at all waypoints."""
+    try:
+        derivatives = np.asarray(values, dtype=float)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"Waypoint {name}s must be numeric.") from error
+    if (
+        derivatives.shape != waypoints.shape
+        or not np.all(np.isfinite(derivatives))
+    ):
+        raise ValueError(
+            f"Waypoint {name}s must be finite and match the waypoint array."
+        )
+    return derivatives
+
+
+def _infer_waypoint_derivatives(waypoints, waypoint_times):
+    """Infer smooth internal derivatives and rest conditions at both ends."""
+    from scipy.interpolate import CubicSpline
+
+    zero = np.zeros(waypoints.shape[1])
+    spline = CubicSpline(
+        waypoint_times,
+        waypoints,
+        axis=0,
+        bc_type=((1, zero), (1, zero)),
+    )
+    velocities = np.asarray(spline(waypoint_times, 1), dtype=float)
+    accelerations = np.asarray(spline(waypoint_times, 2), dtype=float)
+    velocities[[0, -1]] = 0.0
+    accelerations[[0, -1]] = 0.0
+    return velocities, accelerations
+
+
+def _validate_waypoint_times(values, count, duration):
+    """Return valid knot times covering the complete trajectory duration."""
+    if values is None:
+        return np.linspace(0.0, float(duration), count)
+    try:
+        knots = np.asarray(values, dtype=float)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Waypoint times must be numeric.") from error
+    if (
+        knots.shape != (count,)
+        or not np.all(np.isfinite(knots))
+        or not np.isclose(knots[0], 0.0)
+        or not np.isclose(knots[-1], duration)
+        or np.any(np.diff(knots) <= 0.0)
+    ):
+        raise ValueError(
+            "Waypoint times must be finite, strictly increasing, match "
+            "the waypoint count, and span 0 to duration."
+        )
+    return knots
 
 
 def _check_limit(name, values, limits, enforce, interpolator=None,
@@ -238,12 +357,44 @@ def _check_limit(name, values, limits, enforce, interpolator=None,
             interpolator, profile, derivative, values,
             parameterizer=parameterizer,
         )
+    elif interpolator is not None and hasattr(interpolator, 'coefficients'):
+        maxima = _polynomial_derivative_extrema(interpolator, derivative)
 
     if np.any(maxima > bound + 1e-10):
         raise ValueError(
             f"Generated {name} violates configured joint limits "
             "(continuous-domain extrema estimate)."
         )
+
+
+def _polynomial_derivative_extrema(interpolator, derivative):
+    """Find exact per-joint extrema for piecewise polynomial time paths."""
+    maxima = np.zeros(interpolator.q.shape[1])
+    for index, coefficient_matrix in enumerate(interpolator.coefficients):
+        segment_duration = interpolator.s[index + 1] - interpolator.s[index]
+        for joint, coefficients in enumerate(coefficient_matrix.T):
+            derivative_coefficients = np.polynomial.polynomial.polyder(
+                coefficients, m=derivative
+            )
+            critical_coefficients = np.polynomial.polynomial.polyder(
+                derivative_coefficients
+            )
+            candidates = [0.0, segment_duration]
+            if np.any(np.abs(critical_coefficients) > 1e-14):
+                for root in np.polynomial.polynomial.polyroots(
+                    critical_coefficients
+                ):
+                    if abs(root.imag) <= 1e-9 and (
+                        -1e-10 <= root.real <= segment_duration + 1e-10
+                    ):
+                        candidates.append(float(np.clip(
+                            root.real, 0.0, segment_duration
+                        )))
+            values = np.polynomial.polynomial.polyval(
+                candidates, derivative_coefficients
+            )
+            maxima[joint] = max(maxima[joint], np.max(np.abs(values)))
+    return maxima
 
 
 def _estimate_derivative_extrema(interpolator, profile, derivative, sampled,

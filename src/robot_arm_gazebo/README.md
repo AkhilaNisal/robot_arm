@@ -142,6 +142,30 @@ ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py pose_input_mode
 ros2 launch robot_arm_gazebo gp8_pick_place.launch.py pose_input_mode:=yaml
 ```
 
+For joint-space waypoint trajectories, use the separate assignment launch and
+config:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd ~/robot_arm
+colcon build --packages-up-to robot_arm_gazebo
+source install/setup.bash
+ros2 launch robot_arm_gazebo gp8_assignment_waypoint_pick_place.launch.py plot_trajectory:=true
+```
+
+It loads `config/gp8_assignment_waypoints.yaml`. Set `poses.initial`,
+`poses.pick`, and `poses.place`, then add TCP poses to
+`joint_space_trajectory.legs.initial_to_pick`, `pick_to_place`, or
+`place_to_initial`. Each waypoint only needs `position` and
+`orientation_xyzw`. The planner infers smooth joint velocities and
+accelerations at intermediate knots, and starts and ends each leg at rest so
+the gripper can operate at Pick and Place. Move the Initial, Pick, and Place
+markers in RViz, then open a marker menu and choose **Plan and Execute Pick &
+Place**. The reference path, measured path, progress panel, and optional joint
+graphs are available in RViz. Enable the graphs with `plot_trajectory:=true`.
+`duration` is per leg and `num_samples` controls output density. Each leg is
+sent as one controller action goal.
+
 To use another configuration file, pass an absolute path, for example:
 
 ```bash
