@@ -1,4 +1,4 @@
-"""Launch GP8 model, Cartesian trajectory planner, and RViz preview."""
+"""Launch GP7 model, Cartesian trajectory planner, and RViz preview."""
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -13,7 +13,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    """Include the shared preview with GP8-specific model and DH config."""
+    """Include the shared preview with GP7-specific model and DH config."""
     description_share = FindPackageShare('robot_arm_description')
     kinematics_share = FindPackageShare('robot_arm_kinematics')
     trajectory_share = FindPackageShare('robot_arm_trajectory')
@@ -37,7 +37,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'waypoint_config',
             default_value=PathJoinSubstitution([
-                trajectory_share, 'config', 'gp8_joint_waypoints.yaml'
+                trajectory_share, 'config', 'gp7_joint_waypoints.yaml'
             ]),
             description='YAML file containing joint-space waypoint poses.',
         ),
@@ -45,10 +45,10 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(preview_launch),
             launch_arguments={
                 'model': PathJoinSubstitution([
-                    description_share, 'urdf', 'gp8', 'gp8.urdf.xacro'
+                    description_share, 'urdf', 'gp7', 'gp7.urdf.xacro'
                 ]),
                 'robot_config': PathJoinSubstitution([
-                    kinematics_share, 'config', 'gp8.yaml'
+                    kinematics_share, 'config', 'gp7.yaml'
                 ]),
                 'pose_config': PathJoinSubstitution([
                     IfElseSubstitution(
@@ -59,7 +59,7 @@ def generate_launch_description():
                         waypoint_config,
                         PathJoinSubstitution([
                             trajectory_share, 'config',
-                            'gp8_preview_poses.yaml',
+                            'gp7_preview_poses.yaml',
                         ]),
                     ),
                 ]),

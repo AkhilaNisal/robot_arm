@@ -2,14 +2,14 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch_ros.actions import Node
 from launch.substitutions import Command, FindExecutable
+from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
     package_share = get_package_share_directory('robot_arm_description')
-    xacro_file = os.path.join(package_share, 'urdf', 'gp8', 'gp8.urdf.xacro')
+    xacro_file = os.path.join(package_share, 'urdf', 'gp7', 'gp7.urdf.xacro')
     robot_description = ParameterValue(
         Command([FindExecutable(name='xacro'), ' ', xacro_file]),
         value_type=str,

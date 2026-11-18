@@ -1,4 +1,4 @@
-# GP8 Cartesian poses in base_link. The start pose is the zero-joint pose;
+# GP7 Cartesian poses in base_link. The start pose is the zero-joint pose;
 # the goal is a short, reachable motion from it. Positions use metres and
 # orientations use ROS [x, y, z, w] quaternion order.
 poses:

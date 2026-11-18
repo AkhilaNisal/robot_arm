@@ -13,7 +13,7 @@ cd ~/robot_arm
 source /opt/ros/jazzy/setup.bash
 colcon build --packages-up-to robot_arm_description
 source install/setup.bash
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py
 ```
 
 The RViz-only preview uses `robot_state_publisher`, RViz and the
@@ -21,7 +21,7 @@ The RViz-only preview uses `robot_state_publisher`, RViz and the
 physical robot. To run the waypoint mode:
 
 ```bash
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py \
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py \
   planning_mode:=joint_space_waypoints
 ```
 
@@ -78,7 +78,7 @@ is rejected when the cap is enabled.
 
 The `trajectory` mapping in
 `robot_arm_trajectory/config/preview_poses.yaml` and
-`gp8_preview_poses.yaml` configures non-waypoint planning. The waypoint file
+`gp7_preview_poses.yaml` configures non-waypoint planning. The waypoint file
 also has a `joint_space_trajectory` mapping. These values are shared by the
 preview and, where applicable, Gazebo planner configs.
 
@@ -113,7 +113,7 @@ pipeline.
 ## Standalone waypoint YAML and RViz editing
 
 The shipped route is
-`robot_arm_trajectory/config/gp8_joint_waypoints.yaml`. Its structure is:
+`robot_arm_trajectory/config/gp7_joint_waypoints.yaml`. Its structure is:
 
 ```yaml
 poses:
@@ -153,7 +153,7 @@ segments joining pose markers.
 
 The waypoint YAML's top-level `trajectory` section supplies tuned settings
 for the alternate Cartesian line, arc, and endpoint joint-space methods. The
-shipped GP8 profile uses 16 initial Cartesian waypoints, 81 samples, a 250
+shipped GP7 profile uses 16 initial Cartesian waypoints, 81 samples, a 250
 iteration cap, 2 restarts and refinement depth 5. This shorter budget helps
 preview planning time; it can reduce the available resolution/retry budget
 for difficult targets.

@@ -1,9 +1,9 @@
-# GP8 pick and place progress panel
+# GP7 pick and place progress panel
 
 `robot_arm_rviz_panel` is a C++/Qt RViz plugin that subscribes to the Gazebo
 pick/place planner's progress string and displays a percentage bar with a
 status message. It is loaded by
-`robot_arm_gazebo/rviz/gp8_pick_place.rviz`; it has no standalone ROS node or
+`robot_arm_gazebo/rviz/gp7_pick_place.rviz`; it has no standalone ROS node or
 launch file.
 
 ## Build and use
@@ -16,7 +16,7 @@ cd ~/robot_arm
 source /opt/ros/jazzy/setup.bash
 colcon build --packages-up-to robot_arm_gazebo
 source install/setup.bash
-ros2 launch robot_arm_gazebo gp8_pick_place.launch.py
+ros2 launch robot_arm_gazebo gp7_pick_place.launch.py
 ```
 
 The RViz panel is titled **Pick and Place Progress**. After a plugin rebuild,
@@ -28,7 +28,7 @@ shared library.
 The panel subscribes to:
 
 ```text
-/gp8_pick_place/planning_progress  std_msgs/msg/String
+/gp7_pick_place/planning_progress  std_msgs/msg/String
 ```
 
 Messages are formatted as `integer_percentage|status text`:
@@ -48,7 +48,7 @@ status text and reset progress.
 Inspect messages while a pick/place launch is running:
 
 ```bash
-ros2 topic echo /gp8_pick_place/planning_progress
+ros2 topic echo /gp7_pick_place/planning_progress
 ```
 
 The plugin class ID is `robot_arm_rviz_panel/PlanningProgressPanel`, declared

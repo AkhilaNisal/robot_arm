@@ -111,7 +111,7 @@ class TrajectoryPreviewNode(Node):
         self.robot = RobotModel(
             self.get_parameter('robot_config').get_parameter_value().string_value
         )
-        if self.robot.name.lower() == 'gp8':
+        if self.robot.name.lower() == 'gp7':
             q_default = np.zeros(6)
             goal_default_q = np.deg2rad([5, 0, 0, 0, 0, 0])
         else:
@@ -373,7 +373,7 @@ class TrajectoryPreviewNode(Node):
             ),
             gripper_callback=(
                 self._set_gripper
-                if self.robot.name.lower() == 'gp8'
+                if self.robot.name.lower() == 'gp7'
                 else None
             ),
             workspace_callback=self._workspace_action,
@@ -387,21 +387,21 @@ class TrajectoryPreviewNode(Node):
             'Waiting for Start Pose and Goal Pose. '
             'Use a marker menu or call /trajectory_preview/plan to plan.'
         )
-        if self.robot.name.lower() == 'gp8':
+        if self.robot.name.lower() == 'gp7':
             self._publish_joint_positions(
                 self.q_initial, self.get_clock().now()
             )
             self._publish_gripper_state(self.get_clock().now())
 
     def _set_gripper(self, command):
-        """Set the GP8 gripper slider position and publish its joint state."""
+        """Set the GP7 gripper slider position and publish its joint state."""
         self.gripper_position = (
             self.gripper_open_position
             if command == 'open'
             else self.gripper_closed_position
         )
         self._publish_gripper_state(self.get_clock().now())
-        self.get_logger().info(f'GP8 gripper {command}.')
+        self.get_logger().info(f'GP7 gripper {command}.')
 
     def _publish_gripper_state(self, stamp):
         """Publish both mimic finger positions for RViz RobotModel."""
@@ -959,7 +959,7 @@ class TrajectoryPreviewNode(Node):
         message.header.stamp = stamp.to_msg()
         message.name = list(self.robot.joint_names if names is None else names)
         message.position = [float(value) for value in positions]
-        if self.robot.name.lower() == 'gp8':
+        if self.robot.name.lower() == 'gp7':
             message.name.extend([
                 'finger_left_joint', 'finger_right_joint'
             ])

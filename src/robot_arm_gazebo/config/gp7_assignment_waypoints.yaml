@@ -2,7 +2,7 @@
 # Pose positions are TCP xyz in metres; orientations are normalized ROS xyzw.
 objects:
   box_a:
-    position: [0.62, 0.25, 0.10]
+    position: [0.5, 0.5, 0]
     orientation_xyzw: [0.0, 0.0, 0.0, 1.0]
     size: [0.30, 0.30, 0.20]
   box_b:
@@ -18,7 +18,7 @@ poses:
     position: [0.62, -0.25, 0.025]
     orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
   place:
-    position: [0.62, 0.25, 0.225]
+    position: [0.5, 0.5, 0.125]
     orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
 
 pick_place:

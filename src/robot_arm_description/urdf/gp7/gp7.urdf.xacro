@@ -1,14 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<robot name="gp8" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:arg name="world_name" default="pick_place" />
-  <!-- Anchor the arm to the Gazebo world. Without this fixed root, gravity
-       and joint reaction forces let the whole manipulator tip or slide. -->
-  <link name="world" />
-  <joint name="world_to_base" type="fixed">
-    <parent link="world" />
-    <child link="base_link" />
-    <origin xyz="0 0 0" rpy="0 0 0" />
-  </joint>
+<robot name="gp7" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <link name="base_link">
     <inertial>
       <origin xyz="-0.00557004423756792 1.25475303257889E-06 0.0947578598902126" rpy="0 0 0" />
@@ -260,10 +251,6 @@
       </geometry>
     </collision>
   </link>
-  <gazebo reference="finger_left">
-    <mu1>3.0</mu1>
-    <mu2>3.0</mu2>
-  </gazebo>
   <link name="finger_right">
     <inertial>
       <origin xyz="0 0 0.0575" />
@@ -284,15 +271,12 @@
       </geometry>
     </collision>
   </link>
-  <gazebo reference="finger_right">
-    <mu1>3.0</mu1>
-    <mu2>3.0</mu2>
-  </gazebo>
   <joint name="finger_left_joint" type="prismatic">
     <parent link="gripper_base" />
     <child link="finger_left" />
     <origin xyz="0 0.041 0" />
     <axis xyz="0 -1 0" />
+    <mimic joint="finger_right_joint" multiplier="1" offset="0" />
     <limit lower="0" upper="0.015" effort="40" velocity="0.1" />
     <dynamics damping="2.0" friction="0.0" />
   </joint>
@@ -310,24 +294,4 @@
     <child link="tcp" />
     <origin xyz="0 0 0.07" />
   </joint>
-
-  <ros2_control name="GP8GazeboSystem" type="system">
-    <hardware><plugin>gz_ros2_control/GazeboSimSystem</plugin></hardware>
-    <joint name="joint_0"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
-    <joint name="joint_1"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
-    <joint name="joint_2"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
-    <joint name="joint_3"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
-    <joint name="joint_4"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
-    <joint name="joint_5"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
-    <joint name="finger_left_joint"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
-    <joint name="finger_right_joint"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
-  </ros2_control>
-  <gazebo>
-    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-      <parameters>$(find robot_arm_gazebo)/config/controllers.yaml</parameters>
-      <ros>
-        <remapping>/clock:=/world/$(arg world_name)/clock</remapping>
-      </ros>
-    </plugin>
-  </gazebo>
 </robot>

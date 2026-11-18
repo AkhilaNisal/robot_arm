@@ -39,22 +39,22 @@ Visualization Manager:
     - Class: rviz_default_plugins/InteractiveMarkers
       Name: Interactive Poses
       Enabled: true
-      Interactive Markers Namespace: /gp8_pick_place/poses
+      Interactive Markers Namespace: /gp7_pick_place/poses
       Show Descriptions: true
       Show Axes: true
       Show Visual Aids: true
     - Class: rviz_default_plugins/InteractiveMarkers
       Name: Joint Space Waypoints
       Enabled: true
-      Interactive Markers Namespace: /gp8_pick_place/waypoints
+      Interactive Markers Namespace: /gp7_pick_place/waypoints
       Show Descriptions: true
       Show Axes: true
       Show Visual Aids: true
     - Class: rviz_default_plugins/Marker
-      Name: Box A
+      Name: Box A (30 x 30 x 20 cm)
       Enabled: true
       Marker Topic:
-        Value: /gp8_pick_place/box_a
+        Value: /gp7_pick_place/box_a
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable

@@ -1,4 +1,4 @@
-"""Plan and execute a configurable GP8 pick-and-place sequence in Gazebo."""
+"""Plan and execute a configurable GP7 pick-and-place sequence in Gazebo."""
 
 from pathlib import Path
 import json
@@ -49,16 +49,16 @@ class PickPlaceNode(Node):
     SUPPORTS_WAYPOINTS = False
 
     def __init__(self):
-        super().__init__('gp8_pick_place')
+        super().__init__('gp7_pick_place')
         default_config = str(
             Path(get_package_share_directory('robot_arm_gazebo'))
-            / 'config/gp8_pick_place.yaml'
+            / 'config/gp7_pick_place.yaml'
         )
         self.declare_parameter('robot_config', '')
         self.declare_parameter('pose_config', default_config)
         self.declare_parameter('pose_input_mode', 'rviz')
         self.declare_parameter('world_name', 'pick_place')
-        self.declare_parameter('cube_name', 'gp8_demo_cube')
+        self.declare_parameter('cube_name', 'gp7_demo_cube')
         path = Path(self.get_parameter('pose_config').value)
         try:
             data = yaml.safe_load(path.read_text())
@@ -95,7 +95,7 @@ class PickPlaceNode(Node):
         if not robot_config:
             robot_config = str(
                 Path(get_package_share_directory('robot_arm_kinematics'))
-                / 'config/gp8.yaml'
+                / 'config/gp7.yaml'
             )
         self.robot = RobotModel(robot_config)
         pose_config = data['poses']
@@ -183,10 +183,10 @@ class PickPlaceNode(Node):
         )
         self.cube_pose_client = self.create_client(
             SetEntityPose,
-            f'/gp8_pick_place_sim/world/{self.world_name}/set_pose'
+            f'/gp7_pick_place_sim/world/{self.world_name}/set_pose'
         )
         self.plan_service = self.create_service(
-            Trigger, '/gp8_pick_place/plan_and_execute', self._trigger_sequence
+            Trigger, '/gp7_pick_place/plan_and_execute', self._trigger_sequence
         )
         self.state = 'idle'
         self.plans = []
@@ -216,18 +216,18 @@ class PickPlaceNode(Node):
             String, '/trajectory_preview/trajectory_data', path_qos
         )
         self.planning_progress_pub = self.create_publisher(
-            String, '/gp8_pick_place/planning_progress', 10
+            String, '/gp7_pick_place/planning_progress', 10
         )
         self.current_arm_configuration = np.zeros(self.robot.dof)
         self.have_joint_state = False
         self.create_subscription(
             JointState, '/joint_states', self._joint_state_cb, 20
         )
-        self.pose_server = InteractiveMarkerServer(self, '/gp8_pick_place/poses')
+        self.pose_server = InteractiveMarkerServer(self, '/gp7_pick_place/poses')
         self._setup_markers()
         if self.box_a_transform is not None:
             self.box_a_marker_pub = self.create_publisher(
-                Marker, '/gp8_pick_place/box_a', 10
+                Marker, '/gp7_pick_place/box_a', 10
             )
             self.box_a_marker_timer = self.create_timer(
                 0.5, self._publish_box_a_marker
@@ -238,7 +238,7 @@ class PickPlaceNode(Node):
         self.get_logger().info(
             f'Pick/place pose mode: {self.pose_mode}. Choose Plan and Execute '
             'Pick & Place from an RViz marker menu or call '
-            '/gp8_pick_place/plan_and_execute.'
+            '/gp7_pick_place/plan_and_execute.'
         )
 
     @staticmethod

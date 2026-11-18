@@ -2,7 +2,7 @@
 # are normalized ROS xyzw quaternions. Box A is specified by its centre pose.
 objects:
   box_a:
-    position: [0.62, 0.25, 0.10]
+    position: [0.5, 0.5, 0]
     orientation_xyzw: [0.0, 0.0, 0.0, 1.0]
     size: [0.30, 0.30, 0.20]
   box_b:

@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler, SetEnvironmentVariable, TimerAction
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -10,7 +10,7 @@ from launch_ros.substitutions import FindPackagePrefix, FindPackageShare
 
 
 def generate_launch_description():
-    """Start Gazebo, the controlled GP8, a cube, and the pick/place UI."""
+    """Start Gazebo, the controlled GP7, a cube, and the pick/place UI."""
     pkg = FindPackageShare('robot_arm_gazebo')
     description_prefix = FindPackagePrefix('robot_arm_description')
     kinematics = FindPackageShare('robot_arm_kinematics')
@@ -26,20 +26,20 @@ def generate_launch_description():
     world_clock = ['/world/', world_name, '/clock']
     world_set_pose = ['/world/', world_name, '/set_pose']
     gz_args = ['-r -v 2 ', world]
-    xacro_path = PathJoinSubstitution([pkg, 'urdf', 'gp8_gazebo.urdf.xacro'])
+    xacro_path = PathJoinSubstitution([pkg, 'urdf', 'gp7_gazebo.urdf.xacro'])
     robot_description = ParameterValue(
         Command([
             FindExecutable(name='xacro'), ' ', xacro_path,
             ' world_name:=', world_name,
         ]), value_type=str
     )
-    config_path = PathJoinSubstitution([pkg, 'config', 'gp8_pick_place.yaml'])
+    config_path = PathJoinSubstitution([pkg, 'config', 'gp7_pick_place.yaml'])
     cube_initial = LaunchConfiguration('cube_initial_pose')
     cube_size = LaunchConfiguration('cube_size')
-    rviz_config = PathJoinSubstitution([pkg, 'rviz', 'gp8_pick_place.rviz'])
+    rviz_config = PathJoinSubstitution([pkg, 'rviz', 'gp7_pick_place.rviz'])
     spawn_robot = Node(
         package='ros_gz_sim', executable='create', output='screen',
-        arguments=['-world', world_name, '-topic', 'robot_description', '-name', 'gp8',
+        arguments=['-world', world_name, '-topic', 'robot_description', '-name', 'gp7',
                    '-x', '0', '-y', '0', '-z', '0'],
     )
     spawn_cube = Node(
@@ -99,7 +99,7 @@ def generate_launch_description():
         ],
         remappings=[
             (world_set_pose,
-             ['/gp8_pick_place_sim/world/', world_name, '/set_pose']),
+             ['/gp7_pick_place_sim/world/', world_name, '/set_pose']),
         ],
     )
     rviz = Node(
@@ -116,7 +116,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'robot_config': PathJoinSubstitution([
-                kinematics, 'config', 'gp8.yaml'
+                kinematics, 'config', 'gp7.yaml'
             ]),
             'pose_config': pose_config,
             'pose_input_mode': pose_mode,
@@ -129,6 +129,7 @@ def generate_launch_description():
         ],
     )
     return LaunchDescription([
+        DeclareLaunchArgument('gz_partition', default_value='robot_arm_gp7_pick_place'),
         SetEnvironmentVariable(
             name='GZ_PARTITION', value=gz_partition
         ),
@@ -145,8 +146,7 @@ def generate_launch_description():
         DeclareLaunchArgument('pose_input_mode', default_value='config'),
         DeclareLaunchArgument('pose_config', default_value=config_path),
         DeclareLaunchArgument('world_name', default_value='pick_place'),
-        DeclareLaunchArgument('cube_name', default_value='gp8_demo_cube'),
-        DeclareLaunchArgument('gz_partition', default_value='robot_arm_gp8_pick_place'),
+        DeclareLaunchArgument('cube_name', default_value='gp7_demo_cube'),
         DeclareLaunchArgument('plot_trajectory', default_value='false'),
         DeclareLaunchArgument(
             'planner_executable', default_value='pick_place'
@@ -157,8 +157,10 @@ def generate_launch_description():
             pkg, 'worlds', 'pick_place.sdf'
         ])),
         gz, bridge, rsp,
-        RegisterEventHandler(OnProcessExit(target_action=spawn_robot,
-                                           on_exit=[broadcaster])),
+        RegisterEventHandler(OnProcessExit(
+            target_action=spawn_robot,
+            on_exit=[TimerAction(period=3.0, actions=[broadcaster])],
+        )),
         RegisterEventHandler(OnProcessExit(target_action=broadcaster,
                                            on_exit=[arm_controller])),
         RegisterEventHandler(OnProcessExit(target_action=arm_controller,

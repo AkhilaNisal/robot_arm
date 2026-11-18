@@ -12,10 +12,10 @@ cd ~/robot_arm
 source /opt/ros/jazzy/setup.bash
 colcon build --packages-up-to robot_arm_description
 source install/setup.bash
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py
 ```
 
-The GP8 launch starts `robot_state_publisher`, `rviz2`, and the
+The GP7 launch starts `robot_state_publisher`, `rviz2`, and the
 `robot_arm_trajectory/trajectory_preview` node. Use RViz's **Interact** tool
 to move the Start and Goal markers. A marker's context menu offers Cartesian
 Line, Raised Cartesian Arc, Joint Space, gripper open/close, and approximate
@@ -25,20 +25,20 @@ joint trajectory; the robot animates when playback is active.
 
 ## Selecting waypoint planning
 
-The GP8 wrapper has two planning modes: `cartesian` (default) and
+The GP7 wrapper has two planning modes: `cartesian` (default) and
 `joint_space_waypoints`. The latter loads a YAML route with an initial TCP
 pose, zero or more ordered intermediate TCP poses, and a goal TCP pose:
 
 ```bash
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py \
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py \
   planning_mode:=joint_space_waypoints
 ```
 
-This selects `robot_arm_trajectory/config/gp8_joint_waypoints.yaml` and YAML
+This selects `robot_arm_trajectory/config/gp7_joint_waypoints.yaml` and YAML
 pose input automatically. To load another file:
 
 ```bash
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py \
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py \
   planning_mode:=joint_space_waypoints \
   waypoint_config:=/absolute/path/to/my_route.yaml
 ```
@@ -82,12 +82,12 @@ by the route. Each additional pose adds an IK solve and a joint knot. Keep
 poses reachable and avoid abrupt route changes. This planner constrains the
 TCP at the supplied knots; the interpolated TCP can curve between them.
 
-## GP8 launch arguments
+## GP7 launch arguments
 
 | Argument | Default | Values and effect |
 | --- | --- | --- |
 | `planning_mode` | `cartesian` | `cartesian` uses the regular Start/Goal planner menu; `joint_space_waypoints` loads the route YAML and waypoint menu. |
-| `waypoint_config` | installed `gp8_joint_waypoints.yaml` | Path to waypoint route YAML; used in waypoint mode. |
+| `waypoint_config` | installed `gp7_joint_waypoints.yaml` | Path to waypoint route YAML; used in waypoint mode. |
 | `pose_input_mode` | `rviz` | For Cartesian mode, `rviz` enables marker editing and `yaml` loads fixed poses. Waypoint mode forces YAML route input. |
 | `preview_rate` | `30.0` Hz | Positive playback update rate. |
 | `looping` | `false` | Boolean; when true, playback reverses at the end and repeats. |
@@ -98,12 +98,12 @@ TCP at the supplied knots; the interpolated TCP can curve between them.
 Examples:
 
 ```bash
-# Fixed GP8 poses, with graphs
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py \
+# Fixed GP7 poses, with graphs
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py \
   pose_input_mode:=yaml plot_trajectory:=true
 
 # Waypoint route and dense approximate workspace cloud
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py \
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py \
   planning_mode:=joint_space_waypoints workspace_samples:=30000
 ```
 
@@ -134,7 +134,7 @@ ros2 launch robot_arm_description trajectory_preview.launch.py
 | `workspace_samples` | `3000` | Approximate workspace sample count; minimum effective count 100. |
 
 The generic preview currently uses the standard Cartesian preview controls;
-GP8's wrapper adds the waypoint mode. For all `trajectory` YAML planner
+GP7's wrapper adds the waypoint mode. For all `trajectory` YAML planner
 fields, algorithms, and supported values, see the
 [`robot_arm_trajectory` guide](../robot_arm_trajectory/README.md).
 
@@ -142,17 +142,17 @@ fields, algorithms, and supported values, see the
 
 | File | Purpose |
 | --- | --- |
-| `launch/gp8_display.launch.py` | GP8 model, state publisher, RViz and manual joint sliders; no planner. |
+| `launch/gp7_display.launch.py` | GP7 model, state publisher, RViz and manual joint sliders; no planner. |
 | `launch/display.launch.py` | Generic arm display and manual sliders; no planner. |
 | `launch/trajectory_preview.launch.py` | Shared generic launch implementation; starts state publisher, RViz, preview node, optional sliders and plotter. |
-| `launch/gp8_trajectory_preview.launch.py` | GP8 wrapper; selects the GP8 model, DH YAML, RViz config and preview/waypoint YAML. |
-| `urdf/gp8/gp8.urdf.xacro` | GP8 visual/robot description. |
+| `launch/gp7_trajectory_preview.launch.py` | GP7 wrapper; selects the GP7 model, DH YAML, RViz config and preview/waypoint YAML. |
+| `urdf/gp7/gp7.urdf.xacro` | GP7 visual/robot description. |
 | `urdf/generic/robot_arm.urdf.xacro` | Generic six-axis description. |
-| `meshes/*.STL` | GP8 link visual meshes. |
+| `meshes/*.STL` | GP7 link visual meshes. |
 | `rviz/trajectory_preview.rviz` | Robot, marker, reference path, actual path and workspace displays. |
 
-To view GP8 without planning, run `ros2 launch robot_arm_description
-gp8_display.launch.py`. `robot_state_publisher` publishes the model TF tree;
+To view GP7 without planning, run `ros2 launch robot_arm_description
+gp7_display.launch.py`. `robot_state_publisher` publishes the model TF tree;
 the preview node publishes joint states and path markers. Gazebo controller
 execution and pick/place are in the separate
 [`robot_arm_gazebo` package](../robot_arm_gazebo/README.md).

@@ -1,11 +1,11 @@
 robot:
-  name: gp8
+  name: gp7
   dof: 6
   joint_names: [joint_0, joint_1, joint_2, joint_3, joint_4, joint_5]
 
-  # Standard DH model derived from the GP8 URDF joint-axis geometry.
+  # Standard DH model derived from the GP7 URDF joint-axis geometry.
   # DH angles are in degrees; distances are in metres. The base and tool
-  # transforms align the DH frames with base_link and the GP8 TCP.
+  # transforms align the DH frames with base_link and the GP7 TCP.
   base_transform:
     translation: [0.0, 0.0, 0.33]
     rotation_rpy_deg: [180.0, 0.0, -1.5]

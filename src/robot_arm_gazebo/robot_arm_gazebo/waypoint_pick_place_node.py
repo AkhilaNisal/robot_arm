@@ -118,7 +118,7 @@ class WaypointPickPlaceNode(PickPlaceNode):
     def _insert_waypoint_marker(self, leg, pose):
         if not hasattr(self, 'waypoint_server'):
             self.waypoint_server = InteractiveMarkerServer(
-                self, '/gp8_pick_place/waypoints'
+                self, '/gp7_pick_place/waypoints'
             )
         name = f'waypoint_{self._next_waypoint_id}'
         self._next_waypoint_id += 1

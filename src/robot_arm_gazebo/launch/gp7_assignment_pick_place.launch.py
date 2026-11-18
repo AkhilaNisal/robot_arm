@@ -58,7 +58,7 @@ def _launch_setup(context):
     cube_initial = ' '.join(str(value) for value in box_b['position'])
 
     package_share = Path(get_package_share_directory('robot_arm_gazebo'))
-    world_template = package_share / 'worlds' / 'gp8_assignment.sdf'
+    world_template = package_share / 'worlds' / 'gp7_assignment.sdf'
     world_tree = ET.parse(world_template)
     world_element = world_tree.getroot().find('world')
     if world_element is None:
@@ -70,14 +70,14 @@ def _launch_setup(context):
         raise ValueError('Could not construct Box A model from YAML.')
     world_element.append(box_a_model)
     with tempfile.NamedTemporaryFile(
-        mode='wb', prefix='gp8_assignment_', suffix='.sdf', delete=False
+        mode='wb', prefix='gp7_assignment_', suffix='.sdf', delete=False
     ) as runtime_world:
         world_tree.write(runtime_world, encoding='utf-8', xml_declaration=True)
         assignment_world = runtime_world.name
 
     include_pick_place = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([pkg, 'launch', 'gp8_pick_place.launch.py'])
+            PathJoinSubstitution([pkg, 'launch', 'gp7_pick_place.launch.py'])
         ),
         launch_arguments={
             'pose_input_mode': LaunchConfiguration('pose_input_mode'),
@@ -85,9 +85,9 @@ def _launch_setup(context):
             'planner_executable': LaunchConfiguration('planner_executable'),
             'pose_config': LaunchConfiguration('pose_config'),
             'world': assignment_world,
-            'world_name': 'gp8_assignment',
+            'world_name': 'gp7_assignment',
             'cube_name': 'box_b',
-            'gz_partition': 'robot_arm_gp8_assignment',
+            'gz_partition': 'robot_arm_gp7_assignment',
             'cube_initial_pose': cube_initial,
             'cube_size': str(size_b[0]),
         }.items(),
@@ -98,7 +98,7 @@ def _launch_setup(context):
 def generate_launch_description():
     pkg = FindPackageShare('robot_arm_gazebo')
     default_config = PathJoinSubstitution([
-        pkg, 'config', 'gp8_assignment.yaml'
+        pkg, 'config', 'gp7_assignment.yaml'
     ])
     return LaunchDescription([
         DeclareLaunchArgument('pose_input_mode', default_value='config'),
@@ -108,7 +108,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('pose_config', default_value=default_config),
         SetEnvironmentVariable(
-            name='GZ_PARTITION', value='robot_arm_gp8_assignment'
+            name='GZ_PARTITION', value='robot_arm_gp7_assignment'
         ),
         OpaqueFunction(function=_launch_setup),
     ])

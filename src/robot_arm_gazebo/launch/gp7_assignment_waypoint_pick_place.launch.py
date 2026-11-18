@@ -10,11 +10,11 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     package = FindPackageShare('robot_arm_gazebo')
     default_config = PathJoinSubstitution([
-        package, 'config', 'gp8_assignment_waypoints.yaml'
+        package, 'config', 'gp7_assignment_waypoints.yaml'
     ])
     assignment = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([
-            package, 'launch', 'gp8_assignment_pick_place.launch.py'
+            package, 'launch', 'gp7_assignment_pick_place.launch.py'
         ])),
         launch_arguments={
             'pose_input_mode': LaunchConfiguration('pose_input_mode'),

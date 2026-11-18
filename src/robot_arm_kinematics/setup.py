@@ -13,7 +13,7 @@ setup(
         ('share/' + package_name + '/config',
             [
                 'robot_arm_kinematics/config/generic_robot.yaml',
-                'robot_arm_kinematics/config/gp8.yaml',
+                'robot_arm_kinematics/config/gp7.yaml',
             ]),
     ],
     install_requires=['setuptools', 'numpy', 'PyYAML'],

@@ -33,7 +33,7 @@
     </model>
     <model name="work_table">
       <static>true</static>
-      <!-- Shift the work surface away from the GP8 base to clear the arm's
+      <!-- Shift the work surface away from the GP7 base to clear the arm's
            rotating links. The near edge is x=0.32 m. -->
       <pose>0.72 0.0 0.575 0 0 0</pose>
       <link name="table">

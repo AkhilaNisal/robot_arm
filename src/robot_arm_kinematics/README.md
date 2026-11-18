@@ -3,7 +3,7 @@
 `robot_arm_kinematics` is a Python library for configurable robot models,
 standard Denavit–Hartenberg (DH) forward kinematics, a geometric Jacobian and
 three full-pose inverse-kinematics solvers. The standalone preview and Gazebo
-pick/place planner both use the GP8 configuration from this package.
+pick/place planner both use the GP7 configuration from this package.
 
 ## Build
 
@@ -21,7 +21,7 @@ Installed model files are under `robot_arm_kinematics/config/`:
 | File | Model |
 | --- | --- |
 | `generic_robot.yaml` | Generic six-axis example model. |
-| `gp8.yaml` | GP8 DH chain and fixed transforms aligned with the URDF. |
+| `gp7.yaml` | GP7 DH chain and fixed transforms aligned with the URDF. |
 
 The top-level keys and units are:
 
@@ -39,7 +39,7 @@ The top-level keys and units are:
 | `joint_limits.velocity` | Positive maximum angular speed per joint, radians/second. |
 
 Keep the joint names/order consistent with the URDF, controller YAML and
-trajectory data. The fixed GP8 base/tool transforms align the DH frames to
+trajectory data. The fixed GP7 base/tool transforms align the DH frames to
 `base_link` and the TCP; changing them changes pose targets and FK output.
 
 ## Library modules and conventions
@@ -73,7 +73,7 @@ from robot_arm_kinematics.inverse_kinematics.damped_least_squares import (
     DampedLeastSquaresIK,
 )
 
-robot = RobotModel('/path/to/gp8.yaml')
+robot = RobotModel('/path/to/gp7.yaml')
 q = [0.0] * robot.dof  # radians, in robot.joint_names order
 tcp_transform = forward_kinematics(robot, q)
 ik = DampedLeastSquaresIK(robot)
@@ -100,9 +100,9 @@ finite.
 
 - `robot_arm_description/launch/trajectory_preview.launch.py` defaults to
   `generic_robot.yaml` and accepts a `robot_config` path.
-- `robot_arm_description/launch/gp8_trajectory_preview.launch.py` selects
-  `gp8.yaml`.
-- Gazebo's GP8 planner uses the same model for IK and measured TCP FK.
+- `robot_arm_description/launch/gp7_trajectory_preview.launch.py` selects
+  `gp7.yaml`.
+- Gazebo's GP7 planner uses the same model for IK and measured TCP FK.
 
 The package installs a Python library rather than a standalone executable.
 Trajectory planning and the RViz/Gazebo nodes are documented in the

@@ -1,6 +1,6 @@
-# GP8 Gazebo Sim pick and place
+# GP7 Gazebo Sim pick and place
 
-`robot_arm_gazebo` launches the GP8 in Gazebo Sim with `gz_ros2_control`, ROS
+`robot_arm_gazebo` launches the GP7 in Gazebo Sim with `gz_ros2_control`, ROS
 2 controllers, RViz interactive poses, and a pick/place planner. It uses
 `robot_arm_kinematics` for FK/IK, `robot_arm_trajectory` for planning and
 validation, and `robot_arm_rviz_panel` for the progress display. Each motion
@@ -19,19 +19,19 @@ source install/setup.bash
 Standard workcell:
 
 ```bash
-ros2 launch robot_arm_gazebo gp8_pick_place.launch.py
+ros2 launch robot_arm_gazebo gp7_pick_place.launch.py
 ```
 
 Box A / Box B assignment workcell:
 
 ```bash
-ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py
+ros2 launch robot_arm_gazebo gp7_assignment_pick_place.launch.py
 ```
 
 Waypoint-enabled assignment workcell:
 
 ```bash
-ros2 launch robot_arm_gazebo gp8_assignment_waypoint_pick_place.launch.py
+ros2 launch robot_arm_gazebo gp7_assignment_waypoint_pick_place.launch.py
 ```
 
 The standard world has a ground plane, work surface and graspable cube. The
@@ -46,7 +46,7 @@ a pose marker and select **Plan and Execute Pick & Place**. This can also be
 triggered by service:
 
 ```bash
-ros2 service call /gp8_pick_place/plan_and_execute std_srvs/srv/Trigger {}
+ros2 service call /gp7_pick_place/plan_and_execute std_srvs/srv/Trigger {}
 ```
 
 The planner builds the eight-segment sequence (initial approach, pick
@@ -81,7 +81,7 @@ from the selected YAML `pick_place` block. Joint-Space Waypoints uses the
 additional `joint_space_trajectory` settings and leg routes.
 
 The waypoint launch is an assignment workcell wrapper using
-`config/gp8_assignment_waypoints.yaml` by default. It uses the waypoint node
+`config/gp7_assignment_waypoints.yaml` by default. It uses the waypoint node
 and starts in waypoint mode. Add intermediate knots from a pose marker menu:
 
 - **Add Waypoint on Initial to Pick Leg**
@@ -106,7 +106,7 @@ Set `plot_trajectory:=true` to open the optional Matplotlib graphs after a
 plan is ready:
 
 ```bash
-ros2 launch robot_arm_gazebo gp8_assignment_waypoint_pick_place.launch.py \
+ros2 launch robot_arm_gazebo gp7_assignment_waypoint_pick_place.launch.py \
   plot_trajectory:=true
 ```
 
@@ -116,9 +116,9 @@ not provide it.
 
 | Launch file | Arguments | Default behavior |
 | --- | --- | --- |
-| `gp8_pick_place.launch.py` | `pose_input_mode`, `pose_config`, `plot_trajectory`, `world`, `world_name`, `cube_name`, `cube_initial_pose`, `cube_size`, `gz_partition`, `planner_executable` | Standard world, `pick_place` node, shipped standard YAML. |
-| `gp8_assignment_pick_place.launch.py` | `pose_input_mode`, `pose_config`, `plot_trajectory`, `planner_executable` | Assignment world generated from Box A/Box B YAML, standard `pick_place` node. |
-| `gp8_assignment_waypoint_pick_place.launch.py` | `pose_input_mode`, `pose_config`, `plot_trajectory` | Assignment waypoint YAML and `waypoint_pick_place` node. |
+| `gp7_pick_place.launch.py` | `pose_input_mode`, `pose_config`, `plot_trajectory`, `world`, `world_name`, `cube_name`, `cube_initial_pose`, `cube_size`, `gz_partition`, `planner_executable` | Standard world, `pick_place` node, shipped standard YAML. |
+| `gp7_assignment_pick_place.launch.py` | `pose_input_mode`, `pose_config`, `plot_trajectory`, `planner_executable` | Assignment world generated from Box A/Box B YAML, standard `pick_place` node. |
+| `gp7_assignment_waypoint_pick_place.launch.py` | `pose_input_mode`, `pose_config`, `plot_trajectory` | Assignment waypoint YAML and `waypoint_pick_place` node. |
 
 Detailed launch arguments:
 
@@ -129,13 +129,13 @@ Detailed launch arguments:
 | `plot_trajectory` | `false` | Boolean; open optional joint plots after successful planning. |
 | `world` | `worlds/pick_place.sdf` | Standard launch SDF file path. |
 | `world_name` | `pick_place` | Gazebo world name used by bridge/services. |
-| `cube_name` | `gp8_demo_cube` | Gazebo entity name for standard workcell object. |
+| `cube_name` | `gp7_demo_cube` | Gazebo entity name for standard workcell object. |
 | `cube_initial_pose` | `0.62 0.0 0.625` | Space-separated XYZ in metres. |
 | `cube_size` | `0.045` m | Positive cube side length for standard object. |
-| `gz_partition` | `robot_arm_gp8_pick_place` | Gazebo transport partition. Assignment wrapper selects its own partition. |
+| `gz_partition` | `robot_arm_gp7_pick_place` | Gazebo transport partition. Assignment wrapper selects its own partition. |
 | `planner_executable` | `pick_place` | `pick_place` or `waypoint_pick_place`; waypoint wrapper sets the latter. |
 
-`gp8_assignment_pick_place.launch.py` reads Box A/Box B from YAML, generates
+`gp7_assignment_pick_place.launch.py` reads Box A/Box B from YAML, generates
 a temporary SDF containing Box A, and passes Box B pose and cube size into the
 standard launch. `objects.box_b.size` must contain equal positive dimensions
 because the spawned grasp object is a cube. Restart after editing the YAML;
@@ -156,7 +156,7 @@ poses:
     position: [0.62, -0.25, 0.025]
     orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
   place:
-    position: [0.62, 0.25, 0.225]
+    position: [0.5, 0.5, 0.125]
     orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
 ```
 
@@ -165,9 +165,9 @@ Assignment configuration also defines object centres and dimensions:
 ```yaml
 objects:
   box_a:
-    position: [0.62, 0.25, 0.10]  # centre
+    position: [0.5, 0.5, 0.0]  # centre, metres in base_link
     orientation_xyzw: [0.0, 0.0, 0.0, 1.0]
-    size: [0.30, 0.30, 0.20]
+    size: [0.30, 0.30, 0.20]  # task sheet: 30 cm x 30 cm x 20 cm
   box_b:
     position: [0.62, -0.25, 0.025]
     orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
@@ -177,12 +177,17 @@ objects:
 Box A `position` is its centre. Assignment Pick follows Box B; Place is
 computed from Box A's top surface and box heights, with the configured
 orientation. `poses.initial` remains user-configurable. Keep objects and
-approach poses within reach and clear of the GP8 pedestal/work surface.
+approach poses within reach and clear of the GP7 pedestal/work surface.
+Gazebo and the RViz Box A marker both take Box A's pose and dimensions from
+the selected assignment YAML, so the displayed box follows these values.
+For the waypoint assignment, the corresponding Place TCP target is
+`[0.5, 0.5, 0.125]` m: Box A's 0.20 m height plus Box B's 0.05 m height
+places the grasp cube centre 0.125 m above Box A's centre.
 
 ## Planner and gripper configuration
 
-The files `gp8_pick_place.yaml`, `gp8_assignment.yaml`, and
-`gp8_assignment_waypoints.yaml` contain a `pick_place` mapping. The first two
+The files `gp7_pick_place.yaml`, `gp7_assignment.yaml`, and
+`gp7_assignment_waypoints.yaml` contain a `pick_place` mapping. The first two
 select path/interpolation/timing/IK settings for the regular planner. The
 waypoint assignment uses these settings for alternate methods and contains an
 additional waypoint configuration below.
@@ -235,8 +240,8 @@ normalized `orientation_xyzw` in `base_link`. Add knots in RViz or edit YAML;
 the YAML route is restored on reset/relaunch.
 
 The standard workcell uses a default `path_method: joint_space`; its planner
-and grasp values are in `config/gp8_pick_place.yaml`. The regular assignment
-uses the tuned `config/gp8_assignment.yaml`. The waypoint assignment defaults
+and grasp values are in `config/gp7_pick_place.yaml`. The regular assignment
+uses the tuned `config/gp7_assignment.yaml`. The waypoint assignment defaults
 to `joint_space_waypoints` and uses a relatively short IK budget. Settings
 such as fewer Cartesian knots, lower refinement depth, fewer restarts, and
 fewer samples reduce planning work without changing the selected method, but
@@ -246,19 +251,19 @@ can reduce route fidelity or solve success for hard targets.
 
 | Path | Responsibility |
 | --- | --- |
-| `launch/gp8_pick_place.launch.py` | Starts standard Gazebo world, robot, cube, ROS-Gazebo bridge, controllers, RViz and planner. |
-| `launch/gp8_assignment_pick_place.launch.py` | Reads assignment YAML, creates temporary world with Box A, passes Box B spawn geometry and pose to standard launch. |
-| `launch/gp8_assignment_waypoint_pick_place.launch.py` | Assignment wrapper selecting waypoint YAML and `waypoint_pick_place` executable. |
+| `launch/gp7_pick_place.launch.py` | Starts standard Gazebo world, robot, cube, ROS-Gazebo bridge, controllers, RViz and planner. |
+| `launch/gp7_assignment_pick_place.launch.py` | Reads assignment YAML, creates temporary world with Box A, passes Box B spawn geometry and pose to standard launch. |
+| `launch/gp7_assignment_waypoint_pick_place.launch.py` | Assignment wrapper selecting waypoint YAML and `waypoint_pick_place` executable. |
 | `robot_arm_gazebo/pick_place_node.py` | Standard pick/place node, marker menus, method selection, segment planning/validation, execution, progress and cube attachment. |
 | `robot_arm_gazebo/waypoint_pick_place_node.py` | Adds ordered waypoint lists per task leg and sequential waypoint IK planning. |
 | `config/controllers.yaml` | `gz_ros2_control` controller manager and joint state/arm/gripper controller configuration. |
-| `config/gp8_pick_place.yaml` | Standard workcell poses and planner/grasp settings. |
-| `config/gp8_assignment.yaml` | Box A/Box B geometry, task poses, and tuned regular planner configuration. |
-| `config/gp8_assignment_waypoints.yaml` | Assignment waypoint planner defaults and ordered route knots for each task leg. |
+| `config/gp7_pick_place.yaml` | Standard workcell poses and planner/grasp settings. |
+| `config/gp7_assignment.yaml` | Box A/Box B geometry, task poses, and tuned regular planner configuration. |
+| `config/gp7_assignment_waypoints.yaml` | Assignment waypoint planner defaults and ordered route knots for each task leg. |
 | `worlds/pick_place.sdf` | Standard ground/work surface and Gazebo world. |
-| `worlds/gp8_assignment.sdf` | Assignment world template; Box A is added from YAML at launch. |
-| `urdf/gp8_gazebo.urdf.xacro` | GP8 model plus Gazebo and ros2_control integration. |
-| `rviz/gp8_pick_place.rviz` | Robot, poses, objects, TCP paths and progress panel displays. |
+| `worlds/gp7_assignment.sdf` | Assignment world template; Box A is added from YAML at launch. |
+| `urdf/gp7_gazebo.urdf.xacro` | GP7 model plus Gazebo and ros2_control integration. |
+| `rviz/gp7_pick_place.rviz` | Robot, poses, objects, TCP paths and progress panel displays. |
 | `pick_place` executable | Runs `PickPlaceNode`. |
 | `waypoint_pick_place` executable | Runs `WaypointPickPlaceNode`. |
 
@@ -266,9 +271,9 @@ can reduce route fidelity or solve success for hard targets.
 
 | Name | Type | Use |
 | --- | --- | --- |
-| `/gp8_pick_place/plan_and_execute` | `std_srvs/srv/Trigger` | Plan and execute configured sequence. |
-| `/gp8_pick_place/planning_progress` | `std_msgs/msg/String` | `percent|status` updates for the RViz panel. |
-| `/gp8_pick_place/waypoints` | Interactive markers | Editable per-leg TCP waypoint route in waypoint mode. |
+| `/gp7_pick_place/plan_and_execute` | `std_srvs/srv/Trigger` | Plan and execute configured sequence. |
+| `/gp7_pick_place/planning_progress` | `std_msgs/msg/String` | `percent|status` updates for the RViz panel. |
+| `/gp7_pick_place/waypoints` | Interactive markers | Editable per-leg TCP waypoint route in waypoint mode. |
 | `/trajectory_preview/reference_path` | `visualization_msgs/msg/Marker` | Planned TCP reference line. |
 | `/trajectory_preview/actual_path` | `visualization_msgs/msg/Marker` | TCP path from measured joints during execution. |
 | `/trajectory_preview/trajectory_data` | `std_msgs/msg/String` | JSON samples for optional plotter. |
@@ -276,13 +281,13 @@ can reduce route fidelity or solve success for hard targets.
 - If controller startup reports no clock, wait for Gazebo's world clock and
   controller manager; the launch bridges the active world's clock.
 - If the arm does not move, check that spawning and controllers completed,
-  then inspect planner output and `/gp8_pick_place/planning_progress`. The
+  then inspect planner output and `/gp7_pick_place/planning_progress`. The
   first controller goal is sent only after all segments validate.
 - If paths are missing, enable the RViz Reference/Actual Path displays and
   use `base_link` as the fixed frame.
 - If the panel plugin fails to load, rebuild `robot_arm_gazebo`, source the
   workspace, close old RViz instances, and relaunch.
-- Check progress with `ros2 topic echo /gp8_pick_place/planning_progress`.
+- Check progress with `ros2 topic echo /gp7_pick_place/planning_progress`.
 
 The planner validates joint position/velocity and applicable Cartesian
 tracking limits, but does not do collision detection, torque calculation, or

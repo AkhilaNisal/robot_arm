@@ -1,6 +1,6 @@
 # ROS 2 robot arm planning and simulation
 
-This ROS 2 Jazzy workspace contains a generic six-axis arm and a GP8 arm. It
+This ROS 2 Jazzy workspace contains a generic six-axis arm and a GP7 arm. It
 includes URDF/Xacro models, DH-based FK/IK, Cartesian and joint-space
 trajectory planning, a standalone RViz trajectory preview, and a Gazebo Sim
 pick-and-place workcell. The standalone preview is the place to inspect
@@ -36,10 +36,10 @@ After each build, source `install/setup.bash` in the terminal used to launch.
 
 ## Standalone RViz trajectory preview
 
-Launch GP8 with editable Start and Goal poses:
+Launch GP7 with editable Start and Goal poses:
 
 ```bash
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py
 ```
 
 In RViz, choose **Interact**, move a pose marker, and open its context menu.
@@ -53,16 +53,16 @@ visualized finger joints; the preview does not simulate grasp contact.
 Select the ordered TCP waypoint planner:
 
 ```bash
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py \
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py \
   planning_mode:=joint_space_waypoints
 ```
 
 The default file is
-`robot_arm_trajectory/config/gp8_joint_waypoints.yaml`. To use another YAML
+`robot_arm_trajectory/config/gp7_joint_waypoints.yaml`. To use another YAML
 route:
 
 ```bash
-ros2 launch robot_arm_description gp8_trajectory_preview.launch.py \
+ros2 launch robot_arm_description gp7_trajectory_preview.launch.py \
   planning_mode:=joint_space_waypoints \
   waypoint_config:=/absolute/path/to/route.yaml
 ```
@@ -90,7 +90,7 @@ planner and trajectory option.
 | Argument | Default | Purpose / useful range |
 | --- | --- | --- |
 | `planning_mode` | `cartesian` | `cartesian` or `joint_space_waypoints`. |
-| `waypoint_config` | installed GP8 waypoint YAML | Route file used in waypoint mode. |
+| `waypoint_config` | installed GP7 waypoint YAML | Route file used in waypoint mode. |
 | `pose_input_mode` | `rviz` | Editable `rviz` markers or fixed `yaml` poses for Cartesian mode. |
 | `preview_rate` | `30.0` Hz | Positive playback update frequency. |
 | `looping` | `false` | Boolean; reverse and repeat when enabled. |
@@ -108,19 +108,23 @@ refresh settings.
 Standard workcell:
 
 ```bash
-ros2 launch robot_arm_gazebo gp8_pick_place.launch.py
+ros2 launch robot_arm_gazebo gp7_pick_place.launch.py
 ```
 
 Box A / Box B assignment workcell:
 
 ```bash
-ros2 launch robot_arm_gazebo gp8_assignment_pick_place.launch.py
+ros2 launch robot_arm_gazebo gp7_assignment_pick_place.launch.py
 ```
+
+Box A is the large placement box and measures 0.30 m × 0.30 m × 0.20 m,
+centered at (0.5 m, 0.5 m, 0 m), in both assignment configurations. Box B is
+the 0.05 m grasp cube.
 
 Waypoint-enabled assignment workcell:
 
 ```bash
-ros2 launch robot_arm_gazebo gp8_assignment_waypoint_pick_place.launch.py
+ros2 launch robot_arm_gazebo gp7_assignment_waypoint_pick_place.launch.py
 ```
 
 In RViz, edit Initial/Pick/Place and select **Plan and Execute Pick & Place**.
@@ -133,7 +137,7 @@ blue; the measured TCP trace is green. The progress panel reports segment
 planning and execution state.
 
 The default waypoint assignment config is
-`robot_arm_gazebo/config/gp8_assignment_waypoints.yaml`. Use
+`robot_arm_gazebo/config/gp7_assignment_waypoints.yaml`. Use
 `pose_config:=/absolute/path/to/file.yaml` to select another compatible
 configuration. Enable plots with `plot_trajectory:=true`. More launch and YAML
 options, object schema and operational details are in the
@@ -171,10 +175,10 @@ and measured paths in the applicable workcell.
 
 | Package | Main contents |
 | --- | --- |
-| [`robot_arm_description`](src/robot_arm_description/README.md) | Generic/GP8 Xacro, link meshes, RViz layouts, display and preview launch files. |
+| [`robot_arm_description`](src/robot_arm_description/README.md) | Generic/GP7 Xacro, link meshes, RViz layouts, display and preview launch files. |
 | [`robot_arm_kinematics`](src/robot_arm_kinematics/README.md) | Robot YAML models, DH FK, Jacobian and three IK solvers. |
 | [`robot_arm_trajectory`](src/robot_arm_trajectory/README.md) | Cartesian/joint planning, interpolation, timing, validation, RViz preview/plotter nodes and pose YAML. |
-| [`robot_arm_gazebo`](src/robot_arm_gazebo/README.md) | Gazebo worlds, GP8 ros2_control model, pick/place nodes, workcell launch/config files. |
+| [`robot_arm_gazebo`](src/robot_arm_gazebo/README.md) | Gazebo worlds, GP7 ros2_control model, pick/place nodes, workcell launch/config files. |
 | [`robot_arm_rviz_panel`](src/robot_arm_rviz_panel/README.md) | RViz C++ progress panel plugin for Gazebo pick/place. |
 
 ## Main ROS interfaces
@@ -185,8 +189,8 @@ and measured paths in the applicable workcell.
 | `/trajectory_preview/actual_path` | `visualization_msgs/msg/Marker` | TCP path reconstructed from published/measured joints. |
 | `/trajectory_preview/reachable_workspace` | `visualization_msgs/msg/Marker` | Approximate preview workspace cloud. |
 | `/trajectory_preview/trajectory_data` | `std_msgs/msg/String` | JSON trajectory samples for optional plotter. |
-| `/gp8_pick_place/planning_progress` | `std_msgs/msg/String` | `percent|status` for progress panel. |
-| `/gp8_pick_place/plan_and_execute` | `std_srvs/srv/Trigger` | Trigger Gazebo pick/place planning and execution. |
+| `/gp7_pick_place/planning_progress` | `std_msgs/msg/String` | `percent|status` for progress panel. |
+| `/gp7_pick_place/plan_and_execute` | `std_srvs/srv/Trigger` | Trigger Gazebo pick/place planning and execution. |
 
 For details about all nodes, scripts, launch files, YAML keys, examples and
 configurable values, start with each package's README linked above.

@@ -35,7 +35,7 @@ void PlanningProgressPanel::onInitialize()
   }
   rviz_node_ = abstraction->get_raw_node();
   subscription_ = rviz_node_->create_subscription<std_msgs::msg::String>(
-    "/gp8_pick_place/planning_progress", 10,
+    "/gp7_pick_place/planning_progress", 10,
     [this](const std_msgs::msg::String::ConstSharedPtr message) {
       const auto payload = message->data;
       QMetaObject::invokeMethod(
